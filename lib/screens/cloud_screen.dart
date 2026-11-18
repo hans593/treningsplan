@@ -65,8 +65,7 @@ class _CloudScreenState extends State<CloudScreen> {
           setState(() {
             _busy = false;
             _newUser = false;
-            _message = 'Kontoen er laget. Åpne e-posten fra Supabase og trykk på lenken for å bekrefte. '
-                'Siden som åpnes kan vise en feilmelding – det gjør ingenting. Kom så tilbake hit og logg inn.';
+            _message = 'Kontoen er laget. Logg inn med e-post og passord.';
           });
           return;
         }

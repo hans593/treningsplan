@@ -83,9 +83,10 @@ Prosjekt: `treningsplan` (EU, Irland) – https://vyuhelgajlsjdcukyusw.supabase.
 Databaseoppsettet ligger i `supabase/migrations/`. Adresse og publiserbar nøkkel ligger i
 `lib/config.dart` (nøkkelen er laget for å ligge i appen; tilgangen styres av radreglene).
 
-Anbefalt innstilling i Supabase: Authentication → Sign In / Providers → Email.
-Enten slå av «Confirm email» (da er man innlogget med en gang), eller sett Site URL under
-Authentication → URL Configuration, så bekreftelseslenken ikke peker til localhost.
+Nye kontoer bekreftes automatisk av en databaseregel (`auto_confirm_email` på `auth.users`),
+så man er innlogget med en gang etter registrering. Supabase sender likevel en bekreftelses-e-post;
+den kan ignoreres. Vil du heller slå av e-posten helt: Authentication → Sign In / Providers →
+Email → slå av «Confirm email».
 
 ## Struktur
 

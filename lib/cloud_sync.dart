@@ -52,8 +52,14 @@ class CloudSync extends ChangeNotifier {
   /// (false betyr at e-posten må bekreftes først).
   Future<bool> signUp(String email, String password) async {
     final r = await _db.auth.signUp(email: email.trim(), password: password);
+    if (r.session == null) {
+      // Databasen bekrefter nye kontoer automatisk, så innlogging virker med en gang.
+      try {
+        await _db.auth.signInWithPassword(email: email.trim(), password: password);
+      } catch (_) {}
+    }
     notifyListeners();
-    return r.session != null;
+    return _db.auth.currentSession != null;
   }
 
   Future<void> signIn(String email, String password) async {
