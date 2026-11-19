@@ -16,10 +16,11 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'models.dart';
 
 class Coach {
-  Coach({required this.voice, required this.music});
+  Coach({required this.voice, required this.music, this.genre = MusicGenre.pop});
 
   bool voice;
   MusicMode music;
+  MusicGenre genre;
 
   final _tts = FlutterTts();
   AudioPlayer? _work;
@@ -70,8 +71,8 @@ class Coach {
       await session.configure(const AudioSessionConfiguration.music());
       _work = AudioPlayer(handleInterruptions: false);
       _rest = AudioPlayer(handleInterruptions: false);
-      await _work!.setAsset('assets/musikk/arbeid.mp3');
-      await _rest!.setAsset('assets/musikk/pause.mp3');
+      await _work!.setAsset(genre.workAsset);
+      await _rest!.setAsset(genre.restAsset);
       for (final p in [_work!, _rest!]) {
         await p.setLoopMode(LoopMode.one);
       }
@@ -139,6 +140,24 @@ class Coach {
       if (_paused) await pause();
     } else {
       await _stopMusic();
+    }
+  }
+
+  /// Bytt musikktype mens økta pågår.
+  Future<void> setGenre(MusicGenre g) async {
+    if (g == genre) return;
+    genre = g;
+    if (music != MusicMode.appen || _work == null) return;
+    try {
+      await _work!.setAsset(genre.workAsset);
+      await _rest!.setAsset(genre.restAsset);
+      await _applyVolumes();
+      if (!_paused) {
+        _work!.play();
+        _rest!.play();
+      }
+    } catch (e) {
+      debugPrint('Kunne ikke bytte musikk: $e');
     }
   }
 

@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:treningsplan/state.dart';
 import 'package:treningsplan/models.dart';
 import 'package:treningsplan/plan_generator.dart';
 import 'package:treningsplan/workout_steps.dart';
@@ -6,6 +10,8 @@ import 'package:treningsplan/workout_steps.dart';
 import 'plan_test.dart' show hansProfil;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   final weeks = generatePlan(hansProfil());
   Session first(SessionType t, {int week = 0}) =>
       weeks.skip(week).expand((w) => w.sessions).firstWhere((s) => s.type == t);
@@ -54,6 +60,22 @@ void main() {
     final drag = stepsFor(s).where((x) => x.isWork).toList();
     expect(drag.length, s.reps);
     expect(drag.first.speech, contains('Drag 1 av ${s.reps}'));
+  });
+
+  test('alle musikktyper har lydfiler for arbeid og pause', () {
+    for (final g in MusicGenre.values) {
+      expect(File(g.workAsset).existsSync(), isTrue, reason: g.workAsset);
+      expect(File(g.restAsset).existsSync(), isTrue, reason: g.restAsset);
+    }
+  });
+
+  test('musikkvalg lagres og leses', () {
+    final app = AppState(clock: () => DateTime(2026, 12, 1))..createPlan(hansProfil());
+    app.setCoachSettings(genre: MusicGenre.klassisk, music: MusicMode.appen, voice: false);
+    final copy = AppState()..fromJson(app.toJson());
+    expect(copy.musicGenre, MusicGenre.klassisk);
+    expect(copy.voiceOn, isFalse);
+    expect((AppState()..fromJson({})).musicGenre, MusicGenre.pop);
   });
 
   test('ingen steg mangler opplesning', () {

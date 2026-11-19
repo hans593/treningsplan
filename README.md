@@ -21,9 +21,11 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
 - **Stemmesignal (norsk tale):** sier type økt, «Start økt», hver øvelse med mål («Start. Knebøy
   med manual. 12 til 15 repetisjoner»), «Pause. Hvil i 60 sekunder. Neste: …», og teller ned
   «tre, to, en» før hvert bytte. Kan slås av i økta.
-- **Musikk:** appens egne treningslåter (energisk under arbeid, rolig i pauser, dempes når stemmen
-  snakker), egen musikk fra Spotify o.l. (dempes kort når stemmen snakker), eller ingen musikk.
-  Låtene er laget av `tools/lag_musikk.py` og har ingen opphavsrett.
+- **Musikk:** appens egne treningslåter i fem typer – rolig, piano, rock, pop og klassisk – med
+  en energisk låt under arbeid og en rolig i pausene (dempes når stemmen snakker). Eller egen musikk
+  fra Spotify o.l. (dempes kort når stemmen snakker), eller ingen musikk. Velges under Profil →
+  Lyd og musikk (med prøvelytting) eller med notetegnet underveis i økta. Låtene er egne
+  komposisjoner laget av `tools/lag_musikk.py` og har ingen opphavsrett.
 - **Tapt økt:** økter som ikke er krysset av innen dagen er over, regnes som stått over. Du kan da velge å
   - *flytte* økta til en ledig dag samme uke (intervaller legges aldri inntil en annen hard økt),
   - *fordele* den på neste uke innenfor 10 %-grensen, eller
@@ -58,7 +60,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 65 tester: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 67 tester: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 
@@ -106,7 +108,8 @@ Email → slå av «Confirm email».
 | `lib/exercises.dart` | Øvelsesbibliotek og tegnede figurer |
 | `lib/workout_steps.dart` | Gjør en økt om til steg for timeren, med tekst som leses opp |
 | `lib/coach.dart` | Stemme (flutter_tts), musikk (just_audio) og våken skjerm |
-| `assets/musikk/`, `tools/lag_musikk.py` | Appens egne treningslåter og skriptet som lager dem |
+| `assets/musikk/`, `tools/lag_musikk.py` | Appens egne treningslåter (`<type>_arbeid.mp3`, `<type>_pause.mp3`) og skriptet som lager dem |
+| `lib/screens/sound_screen.dart` | Valg av stemme, musikkilde og musikktype, med prøvelytting |
 | `lib/watch_import.dart` | Kobler økter fra klokka til planen, anstrengelse fra puls |
 | `lib/health_sync.dart` | Henter fra Health Connect (pakken `health`) |
 | `lib/cloud_sync.dart` | Innlogging og opplasting til Supabase |

@@ -35,7 +35,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
     if (_ticker == null) {
       final app = AppScope.of(context);
       _steps = stepsFor(widget.session, senior: app.profile?.isSenior ?? false);
-      _coach = Coach(voice: app.voiceOn, music: app.musicMode);
+      _coach = Coach(voice: app.voiceOn, music: app.musicMode, genre: app.musicGenre);
       _coach!.start().then((_) => _announce());
       _startStep();
       _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
@@ -197,18 +197,38 @@ class _GuidedScreenState extends State<GuidedScreen> {
                 _coach?.setVoice(app.voiceOn);
               },
             ),
-            PopupMenuButton<MusicMode>(
+            PopupMenuButton<Object>(
               tooltip: 'Musikk',
               icon: Icon(app.musicMode == MusicMode.av ? Icons.music_off : Icons.music_note),
-              initialValue: app.musicMode,
-              onSelected: (m) {
-                app.setCoachSettings(music: m);
-                _coach?.setMusic(m).then((_) => _coach?.phase(rest: _step.isRest || _step.isPrepare));
+              onSelected: (v) {
+                if (v is MusicMode) {
+                  app.setCoachSettings(music: v);
+                  _coach?.setMusic(v).then((_) => _coach?.phase(rest: _step.isRest || _step.isPrepare));
+                } else if (v is MusicGenre) {
+                  app.setCoachSettings(genre: v, music: MusicMode.appen);
+                  _coach?.setGenre(v);
+                  _coach?.setMusic(MusicMode.appen).then((_) => _coach?.phase(rest: _step.isRest || _step.isPrepare));
+                }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: MusicMode.appen, child: Text('Appens treningsmusikk')),
-                PopupMenuItem(value: MusicMode.egen, child: Text('Egen musikk (Spotify o.l.)')),
-                PopupMenuItem(value: MusicMode.av, child: Text('Ingen musikk')),
+              itemBuilder: (_) => [
+                const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('MUSIKKTYPE')),
+                for (final g in MusicGenre.values)
+                  CheckedPopupMenuItem<Object>(
+                    value: g,
+                    checked: app.musicMode == MusicMode.appen && app.musicGenre == g,
+                    child: Text(g.label),
+                  ),
+                const PopupMenuDivider(),
+                CheckedPopupMenuItem<Object>(
+                  value: MusicMode.egen,
+                  checked: app.musicMode == MusicMode.egen,
+                  child: const Text('Egen musikk (Spotify o.l.)'),
+                ),
+                CheckedPopupMenuItem<Object>(
+                  value: MusicMode.av,
+                  checked: app.musicMode == MusicMode.av,
+                  child: const Text('Ingen musikk'),
+                ),
               ],
             ),
           ],

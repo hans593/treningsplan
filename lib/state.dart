@@ -32,6 +32,7 @@ class AppState extends ChangeNotifier {
   // Guidet økt
   bool voiceOn = true;
   MusicMode musicMode = MusicMode.appen;
+  MusicGenre musicGenre = MusicGenre.pop;
 
   /// Sist endret (brukes for å avgjøre om skyen eller telefonen er nyest).
   DateTime? modifiedAt;
@@ -75,6 +76,7 @@ class AppState extends ChangeNotifier {
         'modifiedAt': modifiedAt?.toIso8601String(),
         'voiceOn': voiceOn,
         'musicMode': musicMode.name,
+        'musicGenre': musicGenre.name,
       };
 
   void fromJson(Map<String, dynamic> j) {
@@ -89,11 +91,13 @@ class AppState extends ChangeNotifier {
     modifiedAt = j['modifiedAt'] == null ? null : DateTime.parse(j['modifiedAt']);
     voiceOn = j['voiceOn'] ?? true;
     musicMode = MusicMode.values.asNameMap()[j['musicMode']] ?? MusicMode.appen;
+    musicGenre = MusicGenre.values.asNameMap()[j['musicGenre']] ?? MusicGenre.pop;
   }
 
-  void setCoachSettings({bool? voice, MusicMode? music}) {
+  void setCoachSettings({bool? voice, MusicMode? music, MusicGenre? genre}) {
     if (voice != null) voiceOn = voice;
     if (music != null) musicMode = music;
+    if (genre != null) musicGenre = genre;
     _changed();
   }
 

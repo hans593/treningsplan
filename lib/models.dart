@@ -17,6 +17,21 @@ enum Feeling { forLett, passe, forTungt }
 /// Musikk under guidet økt: ingen, appens egne låter, eller brukerens egen (Spotify o.l.).
 enum MusicMode { av, appen, egen }
 
+/// Musikktype for appens egne låter.
+enum MusicGenre {
+  rolig('Rolig'),
+  piano('Piano'),
+  rock('Rock'),
+  pop('Pop'),
+  klassisk('Klassisk');
+
+  final String label;
+  const MusicGenre(this.label);
+
+  String get workAsset => 'assets/musikk/${name}_arbeid.mp3';
+  String get restAsset => 'assets/musikk/${name}_pause.mp3';
+}
+
 /// Hvordan en stått-over-økt ble håndtert.
 enum Resolution { forOppstart, flyttet, fordelt, strokket, ekstraOkt }
 

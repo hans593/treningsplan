@@ -6,6 +6,7 @@ import '../widgets.dart';
 import '../cloud_sync.dart';
 import 'cloud_screen.dart';
 import 'onboarding.dart';
+import 'sound_screen.dart';
 import 'watch_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -65,6 +66,20 @@ class ProfileScreen extends StatelessWidget {
                     : 'Hent økter automatisk fra klokka'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WatchScreen())),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.music_note),
+                title: const Text('Lyd og musikk'),
+                subtitle: Text('${app.voiceOn ? 'Stemme på' : 'Stemme av'} · ${switch (app.musicMode) {
+                  MusicMode.appen => app.musicGenre.label,
+                  MusicMode.egen => 'Egen musikk',
+                  MusicMode.av => 'Ingen musikk',
+                }}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundScreen())),
               ),
             ),
             const SizedBox(height: 8),
