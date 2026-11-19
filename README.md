@@ -14,8 +14,16 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
   lettuke hver 4. uke, maks 10 % økning i belastning per uke, og aldri harde økter
   to dager på rad. Intervallene går fra 4 × 1 min til 5 × 4 min. Torsdagene roterer mellom tre sirkler.
 - **Øvelser med illustrasjoner:** 16 øvelser med tegnede figurer, instruksjon og en lettere variant.
-- **Guidet økt:** nedtelling for oppvarming, intervaller, pauser og sirkler, med vibrasjon og lyd
-  ved bytte. Tiden blir riktig også hvis skjermen har vært av.
+- **Guidet økt:** klokka starter automatisk med 10 sekunder «gjør deg klar», og går gjennom
+  oppvarming, sett, intervaller og pauser etter planlagt tid. Styrke A er også tidsstyrt
+  (40–50 sek per sett, 60 sek pause). Tiden blir riktig også hvis appen har vært i bakgrunnen.
+  Skjermen holdes på under økta.
+- **Stemmesignal (norsk tale):** sier type økt, «Start økt», hver øvelse med mål («Start. Knebøy
+  med manual. 12 til 15 repetisjoner»), «Pause. Hvil i 60 sekunder. Neste: …», og teller ned
+  «tre, to, en» før hvert bytte. Kan slås av i økta.
+- **Musikk:** appens egne treningslåter (energisk under arbeid, rolig i pauser, dempes når stemmen
+  snakker), egen musikk fra Spotify o.l. (dempes kort når stemmen snakker), eller ingen musikk.
+  Låtene er laget av `tools/lag_musikk.py` og har ingen opphavsrett.
 - **Tapt økt:** økter som ikke er krysset av innen dagen er over, regnes som stått over. Du kan da velge å
   - *flytte* økta til en ledig dag samme uke (intervaller legges aldri inntil en annen hard økt),
   - *fordele* den på neste uke innenfor 10 %-grensen, eller
@@ -50,7 +58,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 60 tester: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 65 tester: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 
@@ -96,7 +104,9 @@ Email → slå av «Confirm email».
 | `lib/plan_generator.dart` | Bygger planen: faser, lettuker, 10 %-grense, intervallstige |
 | `lib/compensation.dart` | Forslag ved tapt økt: flytt, fordel, stryk |
 | `lib/exercises.dart` | Øvelsesbibliotek og tegnede figurer |
-| `lib/workout_steps.dart` | Gjør en økt om til steg for timeren |
+| `lib/workout_steps.dart` | Gjør en økt om til steg for timeren, med tekst som leses opp |
+| `lib/coach.dart` | Stemme (flutter_tts), musikk (just_audio) og våken skjerm |
+| `assets/musikk/`, `tools/lag_musikk.py` | Appens egne treningslåter og skriptet som lager dem |
 | `lib/watch_import.dart` | Kobler økter fra klokka til planen, anstrengelse fra puls |
 | `lib/health_sync.dart` | Henter fra Health Connect (pakken `health`) |
 | `lib/cloud_sync.dart` | Innlogging og opplasting til Supabase |

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../coach.dart';
 import '../exercises.dart';
 import '../main.dart';
 import '../models.dart';
@@ -25,12 +26,17 @@ class _GuidedScreenState extends State<GuidedScreen> {
   Timer? _ticker;
   final _started = DateTime.now();
   bool _finished = false;
+  Coach? _coach;
+  int _lastCount = -1; // sist opplest nedtelling (3, 2, 1)
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_ticker == null) {
-      _steps = stepsFor(widget.session, senior: AppScope.of(context).profile?.isSenior ?? false);
+      final app = AppScope.of(context);
+      _steps = stepsFor(widget.session, senior: app.profile?.isSenior ?? false);
+      _coach = Coach(voice: app.voiceOn, music: app.musicMode);
+      _coach!.start().then((_) => _announce());
       _startStep();
       _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
     }
@@ -39,7 +45,15 @@ class _GuidedScreenState extends State<GuidedScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _coach?.dispose();
     super.dispose();
+  }
+
+  /// Les opp steget og bytt musikk etter om det er arbeid eller pause.
+  void _announce() {
+    final step = _step;
+    _coach?.phase(rest: step.isRest || step.isPrepare);
+    _coach?.say(step.speech);
   }
 
   WorkoutStep get _step => _steps[_i];
@@ -48,6 +62,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
     final sec = _step.seconds;
     _endsAt = sec == null ? null : DateTime.now().add(Duration(seconds: sec)).subtract(carry);
     _pausedLeft = null;
+    _lastCount = -1;
   }
 
   Duration get _left {
@@ -74,7 +89,17 @@ class _GuidedScreenState extends State<GuidedScreen> {
       _startStep(carry: -left);
       left = _left;
     }
-    if (advanced) _signal();
+    if (advanced) {
+      _signal();
+      _announce();
+    } else if (_step.countdown) {
+      // «Tre, to, en» de siste sekundene.
+      final secs = (left.inMilliseconds / 1000).ceil();
+      if (secs <= 3 && secs >= 1 && secs != _lastCount) {
+        _lastCount = secs;
+        _coach?.say(const {3: 'tre', 2: 'to', 1: 'en'}[secs]!);
+      }
+    }
     setState(() {});
   }
 
@@ -93,6 +118,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
       _startStep();
     });
     _signal();
+    _announce();
   }
 
   void _togglePause() {
@@ -100,8 +126,12 @@ class _GuidedScreenState extends State<GuidedScreen> {
       if (_pausedLeft != null) {
         _endsAt = DateTime.now().add(_pausedLeft!);
         _pausedLeft = null;
+        _coach?.resume();
+        _coach?.say('Fortsetter.');
       } else if (_endsAt != null) {
         _pausedLeft = _left;
+        _coach?.say('Klokka er stoppet.');
+        _coach?.pause();
       }
     });
   }
@@ -112,6 +142,8 @@ class _GuidedScreenState extends State<GuidedScreen> {
     _ticker?.cancel();
     _signal();
     final app = AppScope.of(context);
+    _coach?.phase(rest: true);
+    await _coach?.say(finishSpeech);
     final f = await askFeeling(context);
     app.markDone(widget.session, feeling: f ?? Feeling.passe);
     if (mounted) Navigator.pop(context);
@@ -142,9 +174,10 @@ class _GuidedScreenState extends State<GuidedScreen> {
     final step = _step;
     final cs = Theme.of(context).colorScheme;
     final timed = step.seconds != null;
-    final bg = step.isRest ? const Color(0xFF2F6E55) : cs.primary;
+    final bg = step.isPrepare ? const Color(0xFF3D4842) : step.isRest ? const Color(0xFF2F6E55) : cs.primary;
     final elapsed = DateTime.now().difference(_started);
     final next = _i < _steps.length - 1 ? _steps[_i + 1] : null;
+    final app = AppScope.of(context);
 
     return PopScope(
       canPop: false,
@@ -155,6 +188,30 @@ class _GuidedScreenState extends State<GuidedScreen> {
         appBar: AppBar(
           title: Text(widget.session.title),
           leading: IconButton(tooltip: 'Avslutt', icon: const Icon(Icons.close), onPressed: _quit),
+          actions: [
+            IconButton(
+              tooltip: app.voiceOn ? 'Slå av stemme' : 'Slå på stemme',
+              icon: Icon(app.voiceOn ? Icons.record_voice_over : Icons.voice_over_off),
+              onPressed: () {
+                app.setCoachSettings(voice: !app.voiceOn);
+                _coach?.setVoice(app.voiceOn);
+              },
+            ),
+            PopupMenuButton<MusicMode>(
+              tooltip: 'Musikk',
+              icon: Icon(app.musicMode == MusicMode.av ? Icons.music_off : Icons.music_note),
+              initialValue: app.musicMode,
+              onSelected: (m) {
+                app.setCoachSettings(music: m);
+                _coach?.setMusic(m).then((_) => _coach?.phase(rest: _step.isRest || _step.isPrepare));
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: MusicMode.appen, child: Text('Appens treningsmusikk')),
+                PopupMenuItem(value: MusicMode.egen, child: Text('Egen musikk (Spotify o.l.)')),
+                PopupMenuItem(value: MusicMode.av, child: Text('Ingen musikk')),
+              ],
+            ),
+          ],
         ),
         body: SafeArea(
           child: ListView(

@@ -14,6 +14,9 @@ enum SessionStatus { planlagt, fullfort, staattOver }
 
 enum Feeling { forLett, passe, forTungt }
 
+/// Musikk under guidet økt: ingen, appens egne låter, eller brukerens egen (Spotify o.l.).
+enum MusicMode { av, appen, egen }
+
 /// Hvordan en stått-over-økt ble håndtert.
 enum Resolution { forOppstart, flyttet, fordelt, strokket, ekstraOkt }
 

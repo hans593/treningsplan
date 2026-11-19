@@ -29,6 +29,10 @@ class AppState extends ChangeNotifier {
   DateTime? lastWatchSync;
   Set<String> importedWorkoutIds = {};
 
+  // Guidet økt
+  bool voiceOn = true;
+  MusicMode musicMode = MusicMode.appen;
+
   /// Sist endret (brukes for å avgjøre om skyen eller telefonen er nyest).
   DateTime? modifiedAt;
 
@@ -69,6 +73,8 @@ class AppState extends ChangeNotifier {
         'lastWatchSync': lastWatchSync?.toIso8601String(),
         'importedWorkoutIds': importedWorkoutIds.toList(),
         'modifiedAt': modifiedAt?.toIso8601String(),
+        'voiceOn': voiceOn,
+        'musicMode': musicMode.name,
       };
 
   void fromJson(Map<String, dynamic> j) {
@@ -81,6 +87,14 @@ class AppState extends ChangeNotifier {
     lastWatchSync = j['lastWatchSync'] == null ? null : DateTime.parse(j['lastWatchSync']);
     importedWorkoutIds = ((j['importedWorkoutIds'] as List?) ?? []).cast<String>().toSet();
     modifiedAt = j['modifiedAt'] == null ? null : DateTime.parse(j['modifiedAt']);
+    voiceOn = j['voiceOn'] ?? true;
+    musicMode = MusicMode.values.asNameMap()[j['musicMode']] ?? MusicMode.appen;
+  }
+
+  void setCoachSettings({bool? voice, MusicMode? music}) {
+    if (voice != null) voiceOn = voice;
+    if (music != null) musicMode = music;
+    _changed();
   }
 
   /// Bytt ut alt med data fra skyen (f.eks. ved ny telefon).
