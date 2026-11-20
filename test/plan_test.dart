@@ -132,15 +132,25 @@ void main() {
       }
     });
 
-    test('fordeling holder neste uke innenfor 10 %', () {
+    test('fordel tilbys ikke inn i en lettuke', () {
+      // Uka etter 17. des (21.–27. des) er lettuke.
       final missed = sessionOn(DateTime(2026, 12, 16))..status = SessionStatus.staattOver;
-      final next = weeks[missed.date.difference(weeks.first.monday).inDays ~/ 7 + 1];
-      final before = next.load;
       final opts = compensationOptions(weeks: weeks, profile: p, missed: missed, today: DateTime(2026, 12, 17));
+      expect(weeks[3].deload, isTrue);
+      expect(opts.where((o) => o.kind == CompKind.fordel), isEmpty);
+    });
+
+    test('fordeling holder neste uke innenfor 10 % av forrige vanlige uke', () {
+      // Tapt langtur 30. des, i dag 1. jan: neste uke (4.–10. jan) er vanlig uke.
+      final missed = sessionOn(DateTime(2026, 12, 30))..status = SessionStatus.staattOver;
+      final next = weeks[5];
+      final before = next.plannedLoad;
+      final opts = compensationOptions(weeks: weeks, profile: p, missed: missed, today: DateTime(2027, 1, 1));
       final fordel = opts.firstWhere((o) => o.kind == CompKind.fordel);
       fordel.apply(weeks, p, missed);
-      expect(next.load, greaterThan(before));
-      expect(next.load, lessThanOrEqualTo(before * 1.10 + 0.01));
+      expect(next.plannedLoad, greaterThan(before));
+      expect(next.plannedLoad, lessThanOrEqualTo(loadLimit(weeks, next, startDate: p.startDate)! + 0.01));
+      expect(safetyViolations(weeks, startDate: p.startDate), isEmpty);
     });
 
     test('stryk holder progresjonen igjen for kommende uker', () {
@@ -165,15 +175,25 @@ void main() {
       var now = DateTime(2026, 12, 1);
       final app = AppState(clock: () => now);
       app.createPlan(hansProfil());
+      final progBefore = app.weeks[3].progression;
+      // Trener første uke, så tre økter tapt i uke 2 (ikke langt fravær).
+      for (final s in app.weeks[0].sessions) {
+        s.status = SessionStatus.fullfort;
+      }
+      app.markDone(app.weeks[1].sessions.first);
       now = DateTime(2026, 12, 12);
       app.refreshMissed();
       final missed = app.unresolvedMissed;
       expect(missed.length, greaterThanOrEqualTo(3));
-      final progBefore = app.weeks[3].progression;
+      // Tilbakesteget skjer før brukeren får forslag – med forklaring.
+      expect(app.weeks[3].progression, progBefore - 1);
+      expect(app.unseenChanges.single.delta, -1);
+      // Et valgt forslag blir ikke overskrevet etterpå.
       final m = missed.first;
       final o = app.optionsFor(m).firstWhere((o) => o.kind != CompKind.stryk);
       app.applyCompensation(o, m);
       expect(app.weeks[3].progression, progBefore - 1);
+      expect(m.resolved, isTrue);
     });
 
     test('lagring og lesing gir samme plan', () {

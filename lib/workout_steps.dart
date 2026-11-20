@@ -54,7 +54,14 @@ String sessionName(Session s) => switch (s.type) {
       _ => s.title,
     };
 
-List<WorkoutStep> stepsFor(Session s, {bool senior = false}) {
+/// [extraRest] legges til alle pauser (innstillingen «lengre pauser»).
+List<WorkoutStep> stepsFor(
+  Session s, {
+  bool senior = false,
+  Profile? profile,
+  Map<String, String> swaps = const {},
+  int extraRest = 0,
+}) {
   final steps = <WorkoutStep>[
     WorkoutStep('Gjør deg klar', sessionName(s),
         seconds: 10,
@@ -64,8 +71,11 @@ List<WorkoutStep> stepsFor(Session s, {bool senior = false}) {
   ];
 
   // Legg til en pause med opplesning av neste øvelse.
-  void rest(String title, String sub, int sec, String nextName) => steps.add(WorkoutStep(title, sub,
-      seconds: sec, isRest: true, countdown: sec >= 15, speech: 'Pause. Hvil i ${_tid(sec)}. Neste: $nextName.'));
+  void rest(String title, String sub, int base, String nextName) {
+    final sec = base + extraRest;
+    steps.add(WorkoutStep(title, sub,
+        seconds: sec, isRest: true, countdown: sec >= 15, speech: 'Pause. Hvil i ${_tid(sec)}. Neste: $nextName.'));
+  }
 
   switch (s.type) {
     case SessionType.motbakke:
@@ -78,11 +88,9 @@ List<WorkoutStep> stepsFor(Session s, {bool senior = false}) {
             countdown: true,
             speech: 'Start. Drag $i av ${s.reps}. Opp bakken i ${_tid(s.workSec)}.'));
         if (i < s.reps) {
+          final r = s.restSec + extraRest;
           steps.add(WorkoutStep('Rolig ned', 'Gå rolig ned bakken og hent deg inn',
-              seconds: s.restSec,
-              isRest: true,
-              countdown: true,
-              speech: 'Pause. Gå rolig ned i ${_tid(s.restSec)}.'));
+              seconds: r, isRest: true, countdown: true, speech: 'Pause. Gå rolig ned i ${_tid(r)}.'));
         }
       }
       steps.add(const WorkoutStep('Rask gange', 'Jevnt tempo, du kan fortsatt snakke',
@@ -96,7 +104,7 @@ List<WorkoutStep> stepsFor(Session s, {bool senior = false}) {
           seconds: 360,
           countdown: true,
           speech: 'Start økt. Oppvarming i seks minutter. Marsj på stedet, armsirkler og rolige knebøy.'));
-      final ids = exercisesFor(s);
+      final ids = exercisesFor(s, profile: profile, swaps: swaps);
       for (var r = 1; r <= s.rounds; r++) {
         for (var k = 0; k < ids.length; k++) {
           final id = ids[k];

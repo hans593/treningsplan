@@ -47,8 +47,8 @@ const _floor = Prop([Offset(8, 61), Offset(64, 61)]);
 const _mat = Prop([Offset(4, 56), Offset(68, 56)], width: 4);
 
 const exercises = <String, Exercise>{
-  'knebøy': Exercise('knebøy', 'Knebøy med manual', 'Lår, sete og kjerne',
-      'Hold manualen foran brystet. Sett deg bakover som mot en stol, knærne følger tærne. Rett rygg.',
+  'knebøy': Exercise('knebøy', 'Knebøy', 'Lår, sete og kjerne',
+      'Hold en manual (eller hendene) foran brystet. Sett deg bakover som mot en stol, knærne følger tærne. Rett rygg.',
       'Knebøy ned til en stol', [
     _floor, Head(Offset(38, 13)), Line([Offset(37, 19), Offset(31, 38)]),
     Line([Offset(31, 38), Offset(46, 40), Offset(44, 60)]), Line([Offset(35, 25), Offset(42, 29)]),
@@ -162,7 +162,106 @@ const exercises = <String, Exercise>{
     Head(Offset(32, 10)), Line([Offset(32, 15), Offset(32, 36)]), Line([Offset(32, 36), Offset(32, 60)]),
     Line([Offset(32, 36), Offset(40, 46), Offset(36, 52)]), Line([Offset(32, 20), Offset(48, 30)]),
   ]),
+  'sittendepress': Exercise('sittendepress', 'Skulderpress sittende', 'Skuldre og triceps',
+      'Sitt godt på en stol med ryggen mot ryggstøtten. Press manualene rolig over hodet og senk til skulderhøyde.',
+      'Én arm om gangen, lettere vekt', [
+    _floor, Prop([Offset(34, 44), Offset(52, 44)], width: 3), Prop([Offset(36, 44), Offset(36, 61)], width: 3),
+    Prop([Offset(50, 44), Offset(50, 61)], width: 3), Prop([Offset(52, 44), Offset(52, 24)], width: 3),
+    Head(Offset(42, 14)), Line([Offset(42, 19), Offset(44, 42)]), Line([Offset(44, 42), Offset(28, 44), Offset(28, 60)]),
+    Line([Offset(34, 8), Offset(34, 20), Offset(42, 25), Offset(50, 20), Offset(50, 8)]),
+    Db(Rect.fromLTWH(28, 3, 12, 6)), Db(Rect.fromLTWH(44, 3, 12, 6)),
+  ]),
+  'veggarmheving': Exercise('veggarmheving', 'Armheving mot vegg', 'Bryst, skuldre og armer',
+      'Stå en armlengde fra veggen med hendene i skulderhøyde. Bøy armene til nesen nærmer seg veggen, og press tilbake.',
+      'Stå nærmere veggen', [
+    _floor, Prop([Offset(60, 6), Offset(60, 61)], width: 4),
+    Head(Offset(52, 18)), Line([Offset(30, 60), Offset(49, 24)]), Line([Offset(49, 26), Offset(58, 30)]),
+  ]),
+  'sideplanke': Exercise('sideplanke', 'Sideplanke på kne', 'Sidemage og hofte',
+      'Ligg på siden med underarmen i matta og knærne bøyd. Løft hoften så kroppen blir rett fra kne til skulder.',
+      'Hold kortere, 10–15 sek', [
+    _mat, Head(Offset(14, 32)), Line([Offset(18, 36), Offset(42, 50)]), Line([Offset(42, 50), Offset(56, 54)]),
+    Line([Offset(20, 37), Offset(20, 54)]), Line([Offset(20, 36), Offset(24, 22)]),
+  ]),
+  'stegopp': Exercise('stegopp', 'Steg opp på trapp', 'Lår, sete og balanse',
+      'Sett hele foten på et trappetrinn og press deg opp. Gå rolig ned igjen. Bytt bein. Hold i rekkverket.',
+      'Lavere trinn', [
+    _floor, Prop([Offset(36, 46), Offset(62, 46)], width: 3), Prop([Offset(36, 46), Offset(36, 61)], width: 3),
+    Head(Offset(42, 9)), Line([Offset(42, 14), Offset(42, 33)]), Line([Offset(42, 33), Offset(50, 39), Offset(50, 46)]),
+    Line([Offset(42, 33), Offset(36, 47), Offset(30, 60)]), Line([Offset(42, 19), Offset(36, 31)]), Line([Offset(42, 19), Offset(48, 31)]),
+  ]),
+  'superman': Exercise('superman', 'Rygghev på matte', 'Rygg og sete',
+      'Ligg på magen. Løft armer og bein litt fra matta samtidig, hold et sekund og senk rolig. Se ned i matta.',
+      'Løft bare armene, eller bare beina', [
+    _mat, Head(Offset(14, 44)), Line([Offset(19, 48), Offset(48, 52)]), Line([Offset(48, 52), Offset(64, 46)]),
+    Line([Offset(18, 47), Offset(4, 40)]),
+  ]),
+  'veggengel': Exercise('veggengel', 'Veggengel', 'Skuldre og øvre rygg',
+      'Stå med ryggen inntil en vegg, armene i W-form mot veggen. Skyv armene rolig opp til Y og ned igjen.',
+      'Mindre bevegelse', [
+    _floor, Head(Offset(36, 11)), Line([Offset(36, 16), Offset(36, 40)]), Line([Offset(30, 60), Offset(36, 40), Offset(42, 60)]),
+    Line([Offset(22, 8), Offset(24, 24), Offset(36, 21), Offset(48, 24), Offset(50, 8)]),
+  ]),
 };
+
+/// Alternativer brukeren kan bytte til (samme muskelgruppe).
+const alternatives = <String, List<String>>{
+  'knebøy': ['stolknebøy', 'stegopp', 'seteløft'],
+  'stolknebøy': ['knebøy', 'seteløft'],
+  'utfall': ['stegopp', 'stolknebøy', 'seteløft'],
+  'stegopp': ['stolknebøy', 'seteløft'],
+  'markløft': ['seteløft', 'superman'],
+  'seteløft': ['stolknebøy', 'superman'],
+  'roing': ['enarmsroing', 'superman'],
+  'enarmsroing': ['roing', 'superman'],
+  'brystpress': ['armheving', 'veggarmheving'],
+  'armheving': ['veggarmheving', 'brystpress'],
+  'skulderpress': ['sittendepress', 'veggengel'],
+  'sittendepress': ['skulderpress', 'veggengel'],
+  'planke': ['sideplanke', 'deadbug'],
+  'deadbug': ['planke', 'sideplanke'],
+  'marsj': ['sidesteg'],
+  'sidesteg': ['marsj'],
+};
+
+/// Utstyr en øvelse krever.
+const _needsDumbbells = {'roing', 'enarmsroing', 'brystpress', 'markløft', 'skulderpress', 'sittendepress', 'bicepscurl'};
+const _needsBench = {'armheving', 'enarmsroing', 'stolknebøy', 'sittendepress'};
+
+/// Erstatning når utstyret mangler.
+const _fallback = <String, String>{
+  'roing': 'superman',
+  'enarmsroing': 'superman',
+  'brystpress': 'armheving',
+  'armheving': 'veggarmheving',
+  'markløft': 'seteløft',
+  'skulderpress': 'veggengel',
+  'sittendepress': 'veggengel',
+  'bicepscurl': 'veggarmheving',
+  'stolknebøy': 'knebøy',
+};
+
+bool _hasGear(String id, Profile? p) {
+  if (p == null) return true;
+  if (_needsDumbbells.contains(id) && !p.has(Activity.manualer)) return false;
+  if (_needsBench.contains(id) && !p.has(Activity.benk)) return false;
+  return true;
+}
+
+/// Øvelsen som faktisk brukes: brukerens eget bytte, deretter erstatning hvis utstyret mangler.
+String resolveExercise(String id, {Profile? profile, Map<String, String> swaps = const {}}) {
+  var x = swaps[id] ?? id;
+  for (var i = 0; i < 4 && !_hasGear(x, profile); i++) {
+    x = _fallback[x] ?? x;
+  }
+  return x;
+}
+
+/// Alternativer som passer utstyret.
+List<String> alternativesFor(String original, {Profile? profile}) => [
+      original,
+      ...?alternatives[original],
+    ].where((x) => _hasGear(x, profile)).toList();
 
 const strengthA = ['knebøy', 'roing', 'brystpress', 'markløft', 'skulderpress', 'planke'];
 const circuits = {
@@ -171,13 +270,19 @@ const circuits = {
   3: ['stolknebøy', 'brystpress', 'enarmsroing', 'seteløft', 'marsj'],
 };
 
-List<String> exercisesFor(Session s) =>
-    s.circuit == 0 ? strengthA : (circuits[s.circuit] ?? circuits[1]!);
+/// Øvelsene i planen for økta, før bytte.
+List<String> baseExercisesFor(Session s) => s.circuit == 0 ? strengthA : (circuits[s.circuit] ?? circuits[1]!);
+
+/// Øvelsene brukeren faktisk gjør (med bytte og utstyr).
+List<String> exercisesFor(Session s, {Profile? profile, Map<String, String> swaps = const {}}) =>
+    [for (final id in baseExercisesFor(s)) resolveExercise(id, profile: profile, swaps: swaps)];
 
 /// Repetisjoner/tid for Styrke A ut fra antall runder.
 String repsFor(String id, Session s) {
   final heavy = s.rounds >= 3;
   if (id == 'planke') return heavy ? '30–45 sek' : '20–30 sek';
+  if (id == 'sideplanke') return heavy ? '20–30 sek per side' : '15–20 sek per side';
+  if (id == 'stegopp' || id == 'utfall') return heavy ? '8–10 per bein' : '6–8 per bein';
   return heavy ? '12–15 repetisjoner' : '10–12 repetisjoner';
 }
 

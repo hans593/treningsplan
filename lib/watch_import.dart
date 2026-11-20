@@ -78,8 +78,16 @@ String titleFor(WatchActivity a) => switch (a) {
 
 /// Anstrengelse ut fra puls når den finnes, ellers ut fra aktivitet.
 /// Høy makspuls under gange eller løping tolkes som intervaller (f.eks. motbakker).
-Effort effortFor(ImportedWorkout w, int age) {
-  final hrMax = maxHrFor(age);
+Effort effortFor(ImportedWorkout w, int age, {int? maxHr, bool ignoreHr = false}) {
+  final hrMax = (maxHr ?? maxHrFor(age)).toDouble();
+  if (ignoreHr) {
+    // Medisin påvirker pulsen: bruk bare aktiviteten.
+    return switch (w.activity) {
+      WatchActivity.gange || WatchActivity.annet => Effort.lett,
+      WatchActivity.intervall => Effort.hard,
+      _ => Effort.moderat,
+    };
+  }
   if (w.maxHr != null && w.maxHr! >= hrMax * 0.85 && w.minutes >= 20 &&
       (w.activity == WatchActivity.gange || w.activity == WatchActivity.lop || w.activity == WatchActivity.intervall)) {
     return Effort.hard;
@@ -141,7 +149,7 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
       continue;
     }
     final type = typeFor(w.activity);
-    final effort = effortFor(w, p.age);
+    final effort = effortFor(w, p.age, maxHr: p.maxHr, ignoreHr: p.hrUnreliable);
     final planned = _matchPlanned(app, w, type, effort);
     if (planned != null) {
       if (planned.status == SessionStatus.planlagt) {

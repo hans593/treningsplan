@@ -84,17 +84,27 @@ DateTime? _findFreeDay(List<WeekPlan> weeks, DateTime from, DateTime to, {requir
   return null;
 }
 
+/// Hvor gammel en tapt økt kan være og fortsatt fordeles på neste uke.
+const maxDaysToSpread = 7;
+
+/// Første uke som ikke har startet (uka etter i dag).
+int firstFutureWeekIndex(List<WeekPlan> weeks, DateTime today) =>
+    weeks.where((w) => w.monday.isAfter(dateOnly(today))).firstOrNull?.index ?? weeks.length;
+
 List<CompensationOption> compensationOptions({
   required List<WeekPlan> weeks,
   required Profile profile,
   required Session missed,
   required DateTime today,
+  bool holdUsedThisWeek = false,
 }) {
   final options = <CompensationOption>[];
   final week = weekOf(weeks, missed.date);
   if (week == null) return options;
-  final nextWeek = weeks.where((w) => w.index == week.index + 1).firstOrNull;
   final t = dateOnly(today);
+  final age = t.difference(missed.date).inDays;
+  final futureIdx = firstFutureWeekIndex(weeks, t);
+  final target = futureIdx < weeks.length ? weeks[futureIdx] : null;
 
   // ---------- A: Flytt til ledig dag samme uke ----------
   final from = t.isAfter(missed.date) ? t : missed.date.add(const Duration(days: 1));
@@ -123,6 +133,7 @@ List<CompensationOption> compensationOptions({
     } else {
       why = '${_dagNavn(target)} er ledig.';
     }
+    final newId = '${missed.id}-flyttet';
     options.add(CompensationOption(
       kind: CompKind.flytt,
       title: 'Flytt til ${ukedager[target.weekday - 1]}',
@@ -133,7 +144,7 @@ List<CompensationOption> compensationOptions({
       apply: (ws, p) {
         final w = weekOf(ws, target)!;
         w.sessions.add(Session(
-          id: '${missed.id}-flyttet',
+          id: newId,
           date: target,
           type: convertToEasy ? SessionType.restitusjon : missed.type,
           title: title,
@@ -147,23 +158,32 @@ List<CompensationOption> compensationOptions({
           note: 'Flyttet fra ${fmtUkedag(missed.date).toLowerCase()}',
         ));
         w.sessions.sort((a, b) => a.date.compareTo(b.date));
+        missed.compRefs = ['new:$newId'];
       },
     ));
   }
 
   // ---------- B: Fordel over neste uke ----------
-  if (nextWeek != null && nextWeek.sessions.isNotEmpty) {
-    final planned = nextWeek.load;
-    var budget = planned * 0.10; // belastningsenheter
+  // Bare for nylige tapte økter, bare inn i en uke som ikke har startet, aldri i en lettuke,
+  // og innenfor det som er igjen av 10 %-grensen (felles for alle fordelinger).
+  final limit = target == null ? null : loadLimit(weeks, target, startDate: profile.startDate);
+  if (age <= maxDaysToSpread && target != null && !target.deload && limit != null && target.sessions.isNotEmpty) {
+    final planned = target.plannedLoad;
+    var budget = limit - planned;
     var remaining = missed.minutes;
     final adds = <String, int>{}; // session id -> ekstra minutter
     final changes = <PlanChange>[];
-    final candidates = nextWeek.sessions
-        .where((s) => !s.isHard && s.type != SessionType.styrkeA && s.type != SessionType.styrkeB)
+    final candidates = target.sessions
+        .where((s) =>
+            !s.extra &&
+            s.status == SessionStatus.planlagt &&
+            !s.isHard &&
+            s.type != SessionType.styrkeA &&
+            s.type != SessionType.styrkeB)
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
     for (final s in candidates) {
-      if (remaining <= 0) break;
+      if (remaining <= 0 || budget <= 0) break;
       final factor = s.load / s.minutes;
       final maxByBudget = ((budget / factor) / 5).floor() * 5;
       final add = min(min(15, maxByBudget), ((remaining + 4) ~/ 5) * 5);
@@ -175,74 +195,130 @@ List<CompensationOption> compensationOptions({
     }
     // Ekstra rolig tur på ledig dag hvis det er budsjett igjen.
     DateTime? extraDay;
-    if (remaining >= 20 && budget >= 25) {
-      extraDay = _findFreeDay(weeks, nextWeek.monday, nextWeek.sunday.subtract(const Duration(days: 1)), hard: false);
+    var extraMin = 0;
+    if (remaining >= 20 && budget >= 20) {
+      extraDay = _findFreeDay(weeks, target.monday, target.sunday.subtract(const Duration(days: 1)), hard: false);
       if (extraDay != null) {
-        final m = min(30, ((budget / 5).floor() * 5));
-        changes.add(PlanChange(fmtUkedag(extraDay), 'Hvile', 'Rolig tur $m min'));
-        budget -= m;
-        adds['__extra__'] = m;
+        extraMin = min(30, ((budget / 5).floor() * 5));
+        changes.add(PlanChange(fmtUkedag(extraDay), 'Hvile', 'Rolig tur $extraMin min'));
+        budget -= extraMin;
       }
     }
     if (changes.isNotEmpty) {
-      final added = (planned * 0.10 - budget);
-      final pct = (added / planned * 100).round();
+      final ref = referenceWeek(weeks, target, startDate: profile.startDate)!;
+      final after = limit - budget;
+      final pct = ((after / ref.plannedLoad - 1) * 100).round();
       final ed = extraDay;
+      final em = extraMin;
+      final extraId = '${missed.id}-ekstra';
       options.add(CompensationOption(
         kind: CompKind.fordel,
         title: 'Fordel over neste uke',
         description: 'Litt lengre rolige økter neste uke, innenfor trygg økning.',
         changes: changes,
-        summary: 'Uke ${nextWeek.index + 1}${nextWeek.deload ? ' (lettuke)' : ''}: +$pct % – under grensen på 10 %.',
+        summary: 'Uke ${target.index + 1}: ${pct >= 0 ? '+' : ''}$pct % mot uke ${ref.index + 1} – innenfor grensen på 10 %.',
         recommended: false,
         apply: (ws, p) {
-          final w = ws.firstWhere((x) => x.index == nextWeek.index);
+          final w = ws.firstWhere((x) => x.index == target.index);
+          final refs = <String>[];
           for (final s in w.sessions) {
             final a = adds[s.id];
             if (a != null) {
               s.minutes += a;
-              s.note = 'Lagt til $a min for tapt økt';
+              s.addedMin += a;
+              s.note = 'Lagt til ${s.addedMin} min for tapt økt';
+              refs.add('add:${s.id}:$a');
             }
           }
           if (ed != null) {
             w.sessions.add(Session(
-              id: '${missed.id}-ekstra',
+              id: extraId,
               date: ed,
               type: SessionType.restitusjon,
               title: 'Rolig tur',
-              minutes: adds['__extra__']!,
+              minutes: em,
               effort: Effort.lett,
               note: 'Erstatter tapt økt',
             ));
             w.sessions.sort((a, b) => a.date.compareTo(b.date));
+            refs.add('new:$extraId');
           }
+          missed.compRefs = refs;
         },
       ));
     }
   }
 
   // ---------- C: Stryk og hold nivået ----------
-  // Bare uker som ikke har startet bygges på nytt, så avkryssede økter beholdes.
-  final firstFuture = weeks.where((w) => w.monday.isAfter(t)).firstOrNull?.index ?? weeks.length;
-  final holdFrom = max(week.index + 1, firstFuture);
+  // Senker nivået ett steg for kommende uker, men maks én gang per uke.
+  final holdFrom = max(week.index + 1, futureIdx);
+  final canHold = !holdUsedThisWeek && holdFrom < weeks.length;
   options.add(CompensationOption(
     kind: CompKind.stryk,
     title: 'Stryk og fortsett',
-    description: 'Ingen ekstra økter. Neste uke holdes på samme nivå i stedet for å øke.',
+    description: canHold
+        ? 'Ingen ekstra økter. Neste uke holdes på samme nivå i stedet for å øke.'
+        : 'Ingen ekstra økter. Planen er allerede satt ett steg ned denne uka, så den endres ikke mer.',
     changes: [
-      if (holdFrom < weeks.length)
+      if (canHold)
         PlanChange('Uke ${holdFrom + 1} og videre', 'Planlagt økning', 'Ett steg lavere progresjon')
       else
         const PlanChange('Resten av planen', 'Uendret', 'Uendret'),
     ],
-    summary: 'Progresjonen flyttes én uke. Måldatoen er uendret.',
-    recommended: options.isEmpty,
+    summary: canHold ? 'Progresjonen flyttes én uke. Måldatoen er uendret.' : 'Ingen endring i planen.',
+    recommended: !options.any((o) => o.kind == CompKind.flytt),
     apply: (ws, p) {
-      if (holdFrom < ws.length) regenerateFrom(p, ws, holdFrom, progressionDelta: -1);
+      if (canHold) {
+        regenerateFrom(p, ws, holdFrom, progressionDelta: -1);
+        missed.compRefs = ['hold'];
+      } else {
+        missed.compRefs = [];
+      }
     },
   ));
 
   return options;
+}
+
+/// Angre en valgt løsning for tapt økt. Returnerer en feilmelding, eller null hvis det gikk.
+String? undoCompensation(List<WeekPlan> weeks, Profile profile, Session missed, DateTime today) {
+  final all = [for (final w in weeks) ...w.sessions];
+  Session? find(String id) => all.where((s) => s.id == id).firstOrNull;
+  // Sjekk først at ingenting av det som ble lagt til, allerede er gjort.
+  for (final r in missed.compRefs) {
+    final parts = r.split(':');
+    if (parts[0] == 'new' || parts[0] == 'add') {
+      final s = find(parts[1]);
+      if (s != null && s.status != SessionStatus.planlagt) {
+        return 'Kan ikke angre: «${s.title}» ${fmtDato(s.date)} er allerede registrert.';
+      }
+    }
+  }
+  for (final r in missed.compRefs) {
+    final parts = r.split(':');
+    switch (parts[0]) {
+      case 'new':
+        for (final w in weeks) {
+          w.sessions.removeWhere((s) => s.id == parts[1]);
+        }
+      case 'add':
+        final s = find(parts[1]);
+        final m = int.parse(parts[2]);
+        if (s != null) {
+          s.minutes = max(10, s.minutes - m);
+          s.addedMin = max(0, s.addedMin - m);
+          s.note = s.addedMin > 0 ? 'Lagt til ${s.addedMin} min for tapt økt' : null;
+        }
+      case 'hold':
+        final from = firstFutureWeekIndex(weeks, today);
+        if (from < weeks.length) regenerateFrom(profile, weeks, from, progressionDelta: 1);
+    }
+  }
+  missed.compRefs = [];
+  missed.resolved = false;
+  missed.resolution = null;
+  missed.note = null;
+  return null;
 }
 
 String _dagNavn(DateTime d) {
