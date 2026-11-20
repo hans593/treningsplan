@@ -117,7 +117,7 @@ class _WatchScreenState extends State<WatchScreen> {
                         CircleAvatar(
                             radius: 12,
                             backgroundColor: cs.primaryContainer,
-                            child: Text(n, style: TextStyle(fontSize: 12, color: cs.primary, fontWeight: FontWeight.w700))),
+                            child: Text(n, style: TextStyle(fontSize: 13, color: cs.primary, fontWeight: FontWeight.w700))),
                         const SizedBox(width: 10),
                         Expanded(child: Text(t, style: const TextStyle(fontSize: 15, height: 1.35))),
                       ]),
@@ -146,7 +146,7 @@ class _WatchScreenState extends State<WatchScreen> {
             Text(
               app.lastWatchSync == null ? 'Ikke hentet ennå' : 'Sist hentet ${fmtTid(app.lastWatchSync!)}',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: muted, fontSize: 13),
+              style: const TextStyle(color: muted, fontSize: 14),
             ),
           ],
           if (_busy) const Padding(padding: EdgeInsets.all(16), child: LinearProgressIndicator()),
@@ -157,8 +157,12 @@ class _WatchScreenState extends State<WatchScreen> {
           for (final l in _lines)
             Padding(padding: const EdgeInsets.only(top: 6), child: Text('• $l', style: const TextStyle(fontSize: 14))),
           const SizedBox(height: 16),
-          const _Info('Anstrengelsen beregnes fra pulsen: under 64 % av makspuls er rolig, 64–77 % middels og over det hardt. '
-              'Makspulsen anslås ut fra alderen din. Er pulsen høy i perioder under en gå- eller løpetur, regnes økta som intervaller.'),
+          _Info(app.profile?.hrUnreliable ?? false
+              ? 'Du har oppgitt at medisin påvirker pulsen, så anstrengelsen bedømmes ut fra aktiviteten og ikke pulsen.'
+              : 'Anstrengelsen beregnes fra pulsen: under 64 % av makspuls er rolig, 64–77 % middels og over det hardt. '
+                  'Makspuls: ${app.profile?.maxHr ?? (208 - 0.7 * (app.profile?.age ?? 60)).round()}'
+                  '${app.profile?.maxHr != null ? ' (din egen)' : ' (anslått ut fra alder – kan endres under Profil → Juster)'}. '
+                  'Er pulsen høy i perioder under en gå- eller løpetur, regnes økta som intervaller.'),
         ],
       ),
     );
@@ -173,6 +177,6 @@ class _Info extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: const Color(0xFFEEF2EF), borderRadius: BorderRadius.circular(12)),
-        child: Text(text, style: const TextStyle(fontSize: 13, height: 1.45)),
+        child: Text(text, style: const TextStyle(fontSize: 14, height: 1.45)),
       );
 }

@@ -166,7 +166,7 @@ class _CloudScreenState extends State<CloudScreen> {
             const SizedBox(height: 8),
             TextButton(onPressed: _cloud.signOut, child: const Text('Logg ut')),
             const Text('Når du logger ut, blir dataene liggende både på telefonen og i skyen.',
-                textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 13)),
+                textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 14)),
           ] else ...[
             SegmentedButton<bool>(
               showSelectedIcon: false,
@@ -221,7 +221,7 @@ class _CloudScreenState extends State<CloudScreen> {
           ],
           if (_cloud.lastError != null) ...[
             const SizedBox(height: 12),
-            Text(_cloud.lastError!, style: const TextStyle(color: warnFg, fontSize: 13)),
+            Text(_cloud.lastError!, style: const TextStyle(color: warnFg, fontSize: 14)),
           ],
         ],
       ),

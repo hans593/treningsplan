@@ -5,6 +5,7 @@ import '../models.dart';
 import '../widgets.dart';
 import '../cloud_sync.dart';
 import 'cloud_screen.dart';
+import '../plan_generator.dart' show defaultDays;
 import 'onboarding.dart';
 import 'sound_screen.dart';
 import 'watch_screen.dart';
@@ -26,12 +27,13 @@ class ProfileScreen extends StatelessWidget {
       ('Alder', '${p.age} år'),
       ('Høyde', '${p.heightCm} cm'),
       ('Startvekt', '${fmtKg(p.weightKg)} kg'),
-      ('Målvekt', '${fmtKg(p.targetKg)} kg'),
       ('Periode', '${fmtDatoLang(p.startDate)} – ${fmtDatoLang(p.endDate)}'),
       ('Lengde', '${p.totalWeeks} uker'),
       ('Form', fitness()),
       ('Intensitet', p.intensity.name[0].toUpperCase() + p.intensity.name.substring(1)),
-      ('Treningsdager', '${p.daysPerWeek} per uke, ca. ${p.minutesPerSession} min'),
+      ('Treningsdager', '${(p.trainingDays ?? defaultDays(p.daysPerWeek)).map((d) => ukedagerKort[d].substring(0, 1) + ukedagerKort[d].substring(1).toLowerCase()).join(', ')} · ca. ${p.minutesPerSession} min'),
+      ('Mål', p.holdsWeight ? 'Holde vekten / bedre form' : 'Ned til ${fmtKg(p.targetKg)} kg'),
+      ('Makspuls', p.hrUnreliable ? 'Brukes ikke (medisin)' : p.maxHr != null ? '${p.maxHr} (egen)' : 'ca. ${(208 - 0.7 * p.age).round()} (anslått)'),
     ];
 
     return Scaffold(
@@ -72,12 +74,12 @@ class ProfileScreen extends StatelessWidget {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.music_note),
-                title: const Text('Lyd og musikk'),
+                title: const Text('Lyd, musikk og pauser'),
                 subtitle: Text('${app.voiceOn ? 'Stemme på' : 'Stemme av'} · ${switch (app.musicMode) {
                   MusicMode.appen => app.musicGenre.label,
                   MusicMode.egen => 'Egen musikk',
                   MusicMode.av => 'Ingen musikk',
-                }}'),
+                }}${app.extraRestSec > 0 ? ' · +${app.extraRestSec} s pause' : ''}'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundScreen())),
               ),
@@ -102,11 +104,11 @@ class ProfileScreen extends StatelessWidget {
             FilledButton(
               onPressed: () => Navigator.push(
                   context, MaterialPageRoute(builder: (_) => OnboardingScreen(initial: p))),
-              child: const Text('Juster mål og plan'),
+              child: const Text('Juster mål, dager og plan'),
             ),
             const SizedBox(height: 6),
-            const Text('Endre målvekt, måldato, intensitet eller treningsmengde. Det du har gjort, beholdes.',
-                textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 13)),
+            const Text('Endre målvekt, måldato, treningsdager, utstyr, intensitet eller makspuls. Det du har gjort, beholdes.',
+                textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 14)),
             const SizedBox(height: 14),
             OutlinedButton(
               onPressed: () async {
@@ -145,7 +147,7 @@ class ProfileScreen extends StatelessWidget {
                 'Bruk anstrengelsesskalaen 1–10: rolige turer 3–4, rask gange 5–6, intervaller 7–8. '
                 'Du trenger ikke presse pulsen til maks. Stopp ved brystsmerter, svimmelhet eller uvanlig tung pust. '
                 'Ved hjerte- eller lungesykdom: avklar harde intervaller med fastlegen.',
-                style: TextStyle(color: warnFg, fontSize: 13, height: 1.45),
+                style: TextStyle(color: warnFg, fontSize: 14, height: 1.45),
               ),
             ),
           ],

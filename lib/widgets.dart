@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 
-const muted = Color(0xFF55615A);
+/// Grå hjelpetekst – mørk nok til å leses godt (kontrast over 7:1 på hvit).
+const muted = Color(0xFF46514B);
 const warnBg = Color(0xFFFBEADF);
 const warnFg = Color(0xFF8A3A10);
 
@@ -44,18 +45,18 @@ class SessionTile extends StatelessWidget {
 
     Widget status;
     if (s.extra) {
-      status = Text('+ Ekstra', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: 13));
+      status = Text('+ Ekstra', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: 14));
     } else if (done) {
-      status = Text('✓ Fullført', style: TextStyle(color: isToday ? Colors.white : cs.primary, fontWeight: FontWeight.w600, fontSize: 13));
+      status = Text('✓ Fullført', style: TextStyle(color: isToday ? Colors.white : cs.primary, fontWeight: FontWeight.w600, fontSize: 14));
     } else if (missed) {
       final ok = s.resolution == Resolution.ekstraOkt;
       status = Text(s.resolved ? (s.note ?? 'Håndtert') : 'Stått over',
           style: TextStyle(
               color: ok ? cs.primary : (s.resolution == Resolution.forOppstart ? muted : const Color(0xFFB4501A)),
               fontWeight: FontWeight.w600,
-              fontSize: 13));
+              fontSize: 14));
     } else if (isToday) {
-      status = const Text('I dag →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13));
+      status = const Text('I dag →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14));
     } else {
       status = const SizedBox.shrink();
     }
@@ -81,7 +82,7 @@ class SessionTile extends StatelessWidget {
             SizedBox(
               width: 44,
               child: Column(children: [
-                Text(ukedagerKort[s.date.weekday - 1], style: TextStyle(fontSize: 12, color: sub)),
+                Text(ukedagerKort[s.date.weekday - 1], style: TextStyle(fontSize: 13, color: sub)),
                 Text('${s.date.day}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: fg)),
               ]),
             ),
@@ -93,7 +94,7 @@ class SessionTile extends StatelessWidget {
                 Text(s.title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: fg)),
                 const SizedBox(height: 2),
                 Text(s.note != null && !missed && s.note != 'Før oppstart' ? '${detailFor(s)} · ${s.note}' : detailFor(s),
-                    style: TextStyle(fontSize: 13, color: sub)),
+                    style: TextStyle(fontSize: 14, color: sub)),
               ]),
             ),
             status,
@@ -114,7 +115,7 @@ class StatBox extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: muted)),
+            Text(label, style: const TextStyle(fontSize: 13, color: muted)),
             const SizedBox(height: 2),
             Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ]),

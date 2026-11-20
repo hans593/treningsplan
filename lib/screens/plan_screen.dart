@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../models.dart';
 import '../widgets.dart';
+import 'absence_screen.dart';
 import 'extra_session_screen.dart';
 import 'missed_screen.dart';
 import 'session_screen.dart';
@@ -30,8 +31,11 @@ class _PlanScreenState extends State<PlanScreen> {
         .where((s) => s.status == SessionStatus.fullfort || s.resolution == Resolution.ekstraOkt)
         .length;
     final extras = week.sessions.where((s) => s.extra).length;
-    final allMissed = app.unresolvedMissed;
+    final suggestion = app.suggestedAbsence;
+    final allMissed = suggestion == null ? app.unresolvedMissed : <Session>[];
     final missed = allMissed.length > 2 ? allMissed.sublist(allMissed.length - 2) : allMissed;
+    final changes = app.unseenChanges;
+    final absence = app.activeAbsence;
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -56,7 +60,7 @@ class _PlanScreenState extends State<PlanScreen> {
               Expanded(
                 child: Column(children: [
                   Text(week.phase.toUpperCase() + (week.deload && week.phase != 'Testuke' ? ' · LETTUKE' : ''),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.primary, letterSpacing: 0.5)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary, letterSpacing: 0.5)),
                   Text('Uke ${idx + 1} av $total', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
                   Text('${fmtDato(week.monday)} – ${fmtDato(week.sunday)}', style: const TextStyle(color: muted)),
                 ]),
@@ -80,8 +84,78 @@ class _PlanScreenState extends State<PlanScreen> {
             Text(
                 '$done av ${planned.length} planlagte økter gjennomført'
                 '${extras > 0 ? ' · $extras ekstra' : ''}',
-                style: const TextStyle(fontSize: 13, color: muted)),
+                style: const TextStyle(fontSize: 14, color: muted)),
             const SizedBox(height: 14),
+            // Forklaring når planen er endret (lettere/tyngre, fravær, opptrapping)
+            if (changes.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.info_outline, color: cs.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Planen er endret', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                      for (final c in changes.reversed.take(3))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(c.reason, style: const TextStyle(fontSize: 15, height: 1.35)),
+                        ),
+                    ]),
+                  ),
+                  TextButton(onPressed: app.markChangesSeen, child: const Text('OK')),
+                ]),
+              ),
+              const SizedBox(height: 10),
+            ],
+            // Har vært borte en stund: ett samlet forslag i stedet for mange varsler
+            if (suggestion != null) ...[
+              Material(
+                color: warnBg,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => AbsenceScreen(from: suggestion.from, to: suggestion.to))),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(children: [
+                      const Icon(Icons.healing, color: Color(0xFFB4501A)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Har du vært borte siden ${fmtDato(suggestion.from)}?',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                          const Text('Registrer fravær, så tilpasses planen samlet →', style: TextStyle(color: warnFg, fontSize: 15)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (absence != null) ...[
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                decoration: BoxDecoration(color: const Color(0xFFEEF2EF), borderRadius: BorderRadius.circular(14)),
+                child: Row(children: [
+                  const Icon(Icons.beach_access),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text('${absence.reason}: ${fmtDato(absence.from)}–${fmtDato(absence.to)}',
+                        style: const TextStyle(fontSize: 15)),
+                  ),
+                  if (!absence.from.isAfter(app.today))
+                    TextButton(
+                      onPressed: () => app.endAbsenceNow(absence),
+                      child: const Text('Tilbake nå'),
+                    ),
+                ]),
+              ),
+              const SizedBox(height: 10),
+            ],
             for (final m in missed) ...[
               Material(
                 color: warnBg,
@@ -98,13 +172,18 @@ class _PlanScreenState extends State<PlanScreen> {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('Du sto over: ${m.title} (${ukedager[m.date.weekday - 1]})',
                               style: const TextStyle(fontWeight: FontWeight.w700)),
-                          const Text('Se forslag til hvordan du tar den igjen →', style: TextStyle(color: warnFg)),
+                          const Text('Se forslag til hvordan du tar den igjen →', style: TextStyle(color: warnFg, fontSize: 15)),
                         ]),
                       ),
                     ]),
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+            ],
+            if (allMissed.length > 2) ...[
+              Text('… og ${allMissed.length - 2} til som ikke er tatt igjen. Trykk på økta i listen.',
+                  style: const TextStyle(color: warnFg, fontSize: 14)),
               const SizedBox(height: 10),
             ],
             for (final s in week.sessions) ...[
@@ -126,12 +205,20 @@ class _PlanScreenState extends State<PlanScreen> {
                 padding: EdgeInsets.all(24),
                 child: Text('Ingen økter denne uken.', textAlign: TextAlign.center),
               ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AbsenceScreen())),
+                icon: const Icon(Icons.event_busy),
+                label: const Text('Syk, ferie eller skadet? Registrer fravær'),
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               week.deload
                   ? 'Lettuke: mindre mengde gir kroppen tid til å bygge seg opp.'
                   : 'Dager uten økt er hvile eller valgfri rolig tur. Trener du ekstra, registrer det med knappen nederst.',
-              style: const TextStyle(fontSize: 13, color: muted),
+              style: const TextStyle(fontSize: 14, color: muted),
             ),
           ],
         ),

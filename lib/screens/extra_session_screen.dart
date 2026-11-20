@@ -175,7 +175,7 @@ class _ExtraSessionScreenState extends State<ExtraSessionScreen> {
               Effort.moderat => 'Anstrengelse 5–7 av 10: litt andpusten.',
               Effort.hard => 'Anstrengelse 7–9 av 10: tydelig andpusten.',
             },
-            style: const TextStyle(color: muted, fontSize: 13),
+            style: const TextStyle(color: muted, fontSize: 14),
           ),
           if (missed.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -185,7 +185,7 @@ class _ExtraSessionScreenState extends State<ExtraSessionScreen> {
               child: Text(
                 'Ikke tatt igjen: ${missed.map((m) => '${m.title} ${fmtDato(m.date)} (${m.minutes} min)').join(', ')}. '
                 'En ekstra økt av samme slag på minst 70 % av tiden, i samme uke eller inntil 7 dager etter, tar den igjen.',
-                style: const TextStyle(color: warnFg, fontSize: 13, height: 1.4),
+                style: const TextStyle(color: warnFg, fontSize: 14, height: 1.4),
               ),
             ),
           ],

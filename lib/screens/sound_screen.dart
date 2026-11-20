@@ -64,7 +64,7 @@ class _SoundScreenState extends State<SoundScreen> {
     final app = AppScope.of(context);
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Lyd og musikk')),
+      appBar: AppBar(title: const Text('Lyd, musikk og pauser')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
@@ -85,6 +85,23 @@ class _SoundScreenState extends State<SoundScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          const Text('Pauser', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('Lengre pauser mellom sett og intervaller. Det er alltid trygt å hvile mer.',
+              style: TextStyle(color: muted, fontSize: 14)),
+          const SizedBox(height: 8),
+          SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 0, label: Text('Normale')),
+              ButtonSegment(value: 15, label: Text('+15 s')),
+              ButtonSegment(value: 30, label: Text('+30 s')),
+              ButtonSegment(value: 60, label: Text('+60 s')),
+            ],
+            selected: {app.extraRestSec},
+            onSelectionChanged: (s) => app.setCoachSettings(extraRest: s.first),
+          ),
+          const SizedBox(height: 20),
           const Text('Musikk under økta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           SegmentedButton<MusicMode>(
@@ -104,7 +121,7 @@ class _SoundScreenState extends State<SoundScreen> {
               MusicMode.egen => 'Start Spotify eller annen musikk før økta. Den dempes kort når stemmen snakker.',
               MusicMode.av => 'Bare stemme og klokke.',
             },
-            style: const TextStyle(color: muted, fontSize: 13),
+            style: const TextStyle(color: muted, fontSize: 14),
           ),
           if (app.musicMode == MusicMode.appen) ...[
             const SizedBox(height: 16),
@@ -149,7 +166,7 @@ class _SoundScreenState extends State<SoundScreen> {
               ]),
             ),
             const Text('Den første knappen spiller arbeidsmusikken, den andre pausemusikken. Du kan også bytte type underveis i økta (notetegnet øverst).',
-                style: TextStyle(color: muted, fontSize: 13)),
+                style: TextStyle(color: muted, fontSize: 14)),
           ],
         ],
       ),

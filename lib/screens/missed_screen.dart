@@ -41,7 +41,7 @@ class _MissedScreenState extends State<MissedScreen> {
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [
           const Text('TAPT ØKT',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFB4501A), letterSpacing: 0.5)),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFB4501A), letterSpacing: 0.5)),
           Text('${m.title}, ${m.minutes} min', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
           Text(fmtUkedag(m.date), style: const TextStyle(color: muted, fontSize: 15)),
           const SizedBox(height: 12),
@@ -85,7 +85,7 @@ class _MissedScreenState extends State<MissedScreen> {
                       if (options[i].recommended)
                         TextSpan(
                             text: '  Anbefalt',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.primary)),
                     ])),
                     subtitle: Text(options[i].description),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -106,7 +106,7 @@ class _MissedScreenState extends State<MissedScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(c.dag, style: const TextStyle(fontSize: 13, color: muted, fontWeight: FontWeight.w600)),
+                      Text(c.dag, style: const TextStyle(fontSize: 14, color: muted, fontWeight: FontWeight.w600)),
                       Text.rich(TextSpan(children: [
                         TextSpan(
                             text: c.fra,
@@ -130,7 +130,7 @@ class _MissedScreenState extends State<MissedScreen> {
               '• Aldri to harde økter to dager på rad\n'
               '• Tapte intervaller dobles aldri opp\n'
               '• Står du over 3 økter på 2 uker, går progresjonen én uke tilbake',
-              style: TextStyle(fontSize: 13, height: 1.5),
+              style: TextStyle(fontSize: 14, height: 1.5),
             ),
           ),
           const SizedBox(height: 20),

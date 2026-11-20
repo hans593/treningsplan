@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../models.dart';
 import '../state.dart';
+import '../exercises.dart';
 import '../widgets.dart';
 
 class ProgressScreen extends StatelessWidget {
@@ -27,7 +28,9 @@ class ProgressScreen extends StatelessWidget {
             Row(children: [
               Expanded(child: StatBox('Vekt nå', latest == null ? '–' : '${fmtKg(latest.weightKg!)} kg')),
               const SizedBox(width: 8),
-              Expanded(child: StatBox('Plan i dag', '${fmtKg(app.plannedWeight(app.today))} kg')),
+              Expanded(
+                  child: StatBox(p.holdsWeight ? 'Mål' : 'Plan i dag',
+                      p.holdsWeight ? 'Holde ${fmtKg(p.weightKg)}' : '${fmtKg(app.plannedWeight(app.today))} kg')),
               const SizedBox(width: 8),
               Expanded(
                   child: StatBox('Økter', '${app.sessionsDone}/${app.sessionsSoFar}${app.extrasDone > 0 ? ' +${app.extrasDone}' : ''}')),
@@ -38,9 +41,11 @@ class ProgressScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    const Expanded(
-                        child: Text('Vekt mot mål', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
-                    Text('${fmtKg(p.weightKg)} → ${fmtKg(p.targetKg)} kg', style: const TextStyle(color: muted)),
+                    Expanded(
+                        child: Text(p.holdsWeight ? 'Vekt' : 'Vekt mot mål',
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+                    Text(p.holdsWeight ? 'Holde vekten' : '${fmtKg(p.weightKg)} → ${fmtKg(p.targetKg)} kg',
+                        style: const TextStyle(color: muted, fontSize: 15)),
                   ]),
                   const SizedBox(height: 12),
                   Semantics(
@@ -60,13 +65,31 @@ class ProgressScreen extends StatelessWidget {
                   ]),
                   const SizedBox(height: 8),
                   const Text('Vei deg 2–3 morgener i uken. Svingninger fra dag til dag er normalt.',
-                      style: TextStyle(color: muted, fontSize: 13)),
+                      style: TextStyle(color: muted, fontSize: 14)),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: () => _addMeasurement(context, app),
+                    onPressed: () => _editMeasurement(context, app, null),
                     icon: const Icon(Icons.add),
                     label: const Text('Registrer vekt og midjemål'),
                   ),
+                  if (app.measurements.isNotEmpty)
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: Text('Alle målinger (${app.measurements.length})', style: const TextStyle(fontSize: 15)),
+                      children: [
+                        for (final m in app.measurements.reversed)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(fmtDatoLang(m.date)),
+                            subtitle: Text([
+                              if (m.weightKg != null) '${fmtKg(m.weightKg!)} kg',
+                              if (m.waistCm != null) 'midje ${fmtKg(m.waistCm!)} cm',
+                            ].join(' · ')),
+                            trailing: const Icon(Icons.edit_outlined),
+                            onTap: () => _editMeasurement(context, app, m),
+                          ),
+                      ],
+                    ),
                 ]),
               ),
             ),
@@ -77,7 +100,8 @@ class ProgressScreen extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('Tester', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  const Text('Ved start, midtveis og på måldatoen.', style: TextStyle(color: muted, fontSize: 13)),
+                  const Text('Ved start, midtveis og på måldatoen. Registrerer du samme dag igjen, erstattes testen.',
+                      style: TextStyle(color: muted, fontSize: 14)),
                   const SizedBox(height: 8),
                   if (app.tests.isEmpty)
                     const Padding(
@@ -85,18 +109,33 @@ class ProgressScreen extends StatelessWidget {
                       child: Text('Ingen tester registrert ennå.'),
                     ),
                   for (final t in app.tests)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(fmtDatoLang(t.date), style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Text([
-                          if (t.squats60s != null) 'Knebøy: ${t.squats60s}',
-                          if (t.plankSec != null) 'Planke: ${t.plankSec} s',
-                          if (t.walk3kmSec != null)
-                            '3 km: ${t.walk3kmSec! ~/ 60}:${(t.walk3kmSec! % 60).toString().padLeft(2, '0')}',
-                          if (t.hillBreath != null) 'Pust i bakke: ${t.hillBreath}/10',
-                        ].join(' · '), style: const TextStyle(color: muted)),
-                      ]),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(fmtDatoLang(t.date), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text([
+                        if (t.squats60s != null) 'Knebøy: ${t.squats60s}',
+                        if (t.plankSec != null) 'Planke: ${t.plankSec} s',
+                        if (t.walk3kmSec != null)
+                          '3 km: ${t.walk3kmSec! ~/ 60}:${(t.walk3kmSec! % 60).toString().padLeft(2, '0')}',
+                        if (t.hillBreath != null) 'Pust i bakke: ${t.hillBreath}/10',
+                      ].join(' · '), style: const TextStyle(color: muted, fontSize: 15)),
+                      trailing: IconButton(
+                        tooltip: 'Slett test',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (c) => AlertDialog(
+                              title: Text('Slette testen fra ${fmtDato(t.date)}?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Avbryt')),
+                                TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Slett')),
+                              ],
+                            ),
+                          );
+                          if (ok == true) app.deleteTest(t);
+                        },
+                      ),
                     ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
@@ -107,6 +146,43 @@ class ProgressScreen extends StatelessWidget {
                 ]),
               ),
             ),
+            if (app.loggedExercises.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Styrke', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                    const Text('Tyngste vekt du har registrert per øvelse.', style: TextStyle(color: muted, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    for (final id in app.loggedExercises)
+                      Builder(builder: (context) {
+                        final h = app.strengthHistory(id);
+                        if (h.isEmpty) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(children: [
+                            ExerciseFigure(id, size: 40),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(exercises[id]?.name ?? id, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                                Text(
+                                  h.length == 1
+                                      ? '${fmtKg(h.first.$2)} kg'
+                                      : '${fmtKg(h.first.$2)} → ${fmtKg(h.last.$2)} kg (${h.length} økter)',
+                                  style: const TextStyle(color: muted, fontSize: 14),
+                                ),
+                              ]),
+                            ),
+                            SizedBox(width: 80, height: 32, child: CustomPaint(painter: _Spark([for (final x in h) x.$2]))),
+                          ]),
+                        );
+                      }),
+                  ]),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
@@ -115,12 +191,12 @@ class ProgressScreen extends StatelessWidget {
                 const Text('Kosthold for målet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
-                  p.kgPerWeek <= 0
-                      ? 'Målet er å holde vekten. Spis variert med protein til hvert måltid.'
+                  p.holdsWeight
+                      ? 'Målet er å holde vekten og bli i bedre form. Spis variert, med protein til hvert måltid.'
                       : 'Ca. ${(p.dailyDeficitKcal / 50).round() * 50} kcal underskudd per dag gir rundt '
                           '${p.kgPerWeek.toStringAsFixed(2).replaceAll('.', ',')} kg ned per uke. '
                           'Protein til hvert måltid hjelper deg å beholde musklene.',
-                  style: const TextStyle(fontSize: 14, height: 1.45),
+                  style: const TextStyle(fontSize: 15, height: 1.45),
                 ),
               ]),
             ),
@@ -133,38 +209,82 @@ class ProgressScreen extends StatelessWidget {
   Widget _legend(Color c, String label, {bool dashed = false}) => Row(children: [
         Container(width: 18, height: 3, color: dashed ? c.withValues(alpha: 0.6) : c),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 13, color: muted)),
+        Text(label, style: const TextStyle(fontSize: 14, color: muted)),
       ]);
 
-  Future<void> _addMeasurement(BuildContext context, AppState app) async {
-    final w = TextEditingController(), waist = TextEditingController();
-    final ok = await showDialog<bool>(
+  /// Ny måling (m == null) eller rett/slett en eksisterende.
+  Future<void> _editMeasurement(BuildContext context, AppState app, Measurement? m) async {
+    final w = TextEditingController(text: m?.weightKg == null ? '' : fmtKg(m!.weightKg!));
+    final waist = TextEditingController(text: m?.waistCm == null ? '' : fmtKg(m!.waistCm!));
+    var date = m?.date ?? app.today;
+    String? error;
+    double? n(String s) => s.trim().isEmpty ? null : double.tryParse(s.replaceAll(',', '.').trim());
+    final result = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Ny måling i dag'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-              controller: w,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Vekt (kg)')),
-          const SizedBox(height: 12),
-          TextField(
-              controller: waist,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Midjemål (cm, valgfritt)')),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Avbryt')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Lagre')),
-        ],
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: Text(m == null ? 'Ny måling' : 'Endre måling'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event),
+                title: Text(date == app.today ? 'I dag' : fmtDatoLang(date)),
+                trailing: const Icon(Icons.edit_calendar),
+                onTap: () async {
+                  final d = await showDatePicker(
+                      context: c, initialDate: date, firstDate: DateTime(2020), lastDate: app.today);
+                  if (d != null) set(() => date = d);
+                },
+              ),
+              TextField(
+                  controller: w,
+                  autofocus: m == null,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Vekt (kg)')),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: waist,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Midjemål (cm, valgfritt)')),
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(error!, style: const TextStyle(color: Colors.red, fontSize: 14)),
+                ),
+            ]),
+          ),
+          actions: [
+            if (m != null) TextButton(onPressed: () => Navigator.pop(c, 'slett'), child: const Text('Slett')),
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Avbryt')),
+            TextButton(
+              onPressed: () {
+                final kg = n(w.text), cm = n(waist.text);
+                final err = (w.text.trim().isNotEmpty && kg == null)
+                    ? 'Skriv vekten som et tall, f.eks. 94,5'
+                    : validateWeight(kg) ?? validateWaist(cm) ?? (kg == null && cm == null ? 'Fyll inn vekt eller midjemål' : null);
+                if (err != null) {
+                  set(() => error = err);
+                  return;
+                }
+                Navigator.pop(c, 'lagre');
+              },
+              child: const Text('Lagre'),
+            ),
+          ],
+        ),
       ),
     );
-    if (ok != true) return;
-    double? n(String s) => double.tryParse(s.replaceAll(',', '.'));
-    final kg = n(w.text), cm = n(waist.text);
-    if (kg == null && cm == null) return;
-    app.addMeasurement(Measurement(date: app.today, weightKg: kg, waistCm: cm));
+    if (result == 'slett' && m != null) {
+      app.deleteMeasurement(m);
+    } else if (result == 'lagre') {
+      final nm = Measurement(date: date, weightKg: n(w.text), waistCm: n(waist.text));
+      if (m == null) {
+        app.addMeasurement(nm);
+      } else {
+        app.updateMeasurement(m, nm);
+      }
+    }
   }
 
   Future<void> _addTest(BuildContext context, AppState app) async {
@@ -220,6 +340,34 @@ class ProgressScreen extends StatelessWidget {
       hillBreath: int.tryParse(breath.text)?.clamp(1, 10),
     ));
   }
+}
+
+/// Liten kurve for styrkeutvikling.
+class _Spark extends CustomPainter {
+  final List<double> v;
+  _Spark(this.v);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (v.length < 2) return;
+    final lo = v.reduce(min), hi = v.reduce(max);
+    final span = hi - lo == 0 ? 1 : hi - lo;
+    final path = Path();
+    for (var i = 0; i < v.length; i++) {
+      final x = size.width * i / (v.length - 1);
+      final y = size.height - 4 - (size.height - 8) * (v[i] - lo) / span;
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    canvas.drawPath(
+        path,
+        Paint()
+          ..color = brandGreen
+          ..strokeWidth = 2.5
+          ..style = PaintingStyle.stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _Spark old) => true;
 }
 
 class _WeightChart extends CustomPainter {

@@ -28,17 +28,37 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
   komposisjoner laget av `tools/lag_musikk.py` og har ingen opphavsrett.
 - **Tapt økt:** økter som ikke er krysset av innen dagen er over, regnes som stått over. Du kan da velge å
   - *flytte* økta til en ledig dag samme uke (intervaller legges aldri inntil en annen hard økt),
-  - *fordele* den på neste uke innenfor 10 %-grensen, eller
-  - *stryke* den, slik at neste uke holdes på samme nivå.
-  Står du over 3 økter på 2 uker, går progresjonen én uke tilbake.
+  - *fordele* den på neste uke – bare for tapte økter siste 7 dager, aldri inn i en lettuke eller en uke som
+    har startet, og innenfor det som er igjen av 10 %-grensen (felles for alle fordelinger), eller
+  - *stryke* den, slik at neste uke holdes på samme nivå (maks ett steg ned per uke).
+  Valget kan angres. Står du over 3 økter på 2 uker, settes planen ett steg ned – før forslagene vises,
+  med en forklaring. Tapte økter eldre enn 14 dager lukkes.
+- **Fravær (sykdom, ferie, skade):** registreres bakover eller frem i tid. Økter i perioden teller ikke som
+  tapt. Etter minst en uke starter planen med en lettere uke og et lavere nivå (1–2 uker: ett steg,
+  2–4 uker: to, 4–6 uker: tre, over 6 uker: fra start). Måldatoen kan flyttes like mange uker. Har du vært
+  borte en stund uten å registrere det, foreslår appen fravær samlet i stedet for mange varsler.
+  «Tilbake nå» avslutter fraværet før tiden.
+- **Egne treningsdager:** velg 3–6 ukedager. Intervallene legges der du har hviledag etter, langturen i helga.
+- **Flytte eller bytte en økt** med en annen dag i samme uke (dager som ville gitt harde økter på rad er sperret).
+- **Gjør lettere i dag:** kortere økt eller bytt til rolig tur – bare nedover, alltid trygt.
+- **Bytt øvelse** ved vondt kne, skulder eller rygg (gjelder alle kommende økter). Uten manualer eller
+  stol/benk velges kroppsvektøvelser automatisk.
+- **Vekter og repetisjoner** per øvelse etter styrkeøkter, med utvikling under Fremgang.
+- **Rette registreringer:** faktisk varighet, anstrengelse og følelse; type for ekstraøkter.
+- **Egen makspuls** (eller «medisin påvirker pulsen») brukes når klokka bedømmer anstrengelse.
+- **Lengre pauser** (+15/30/60 sek) i guidede økter.
+- **Forklaring** på planskjermen hver gang planen gjøres lettere eller tyngre, og hvorfor.
+- **Mål:** gå ned i vekt, eller holde vekten / bedre form. Planen er maks 104 uker (to år).
 - **Ekstra økter utenom planen:** registreres i dag eller tilbake i tid (gange, jogging, intervaller,
   styrke, sykling, ski, annet), med varighet og anstrengelse. De regnes med i ukas trening.
   En ekstra økt av samme slag (kondisjon/styrke) på minst 70 % av tiden tar automatisk igjen en
   tapt økt i samme uke eller inntil 7 dager etter. Intervaller kan ikke tas igjen med en rolig tur.
 - **Ikke gjennomført innen datoen = ikke utført.** En planlagt økt kan bare etterregistreres på sin
   egen dato (du gjorde den, men glemte å krysse av). Trente du en annen dag, registreres det som ekstra økt.
-- **Juster mål underveis:** målvekt, måldato, intensitet, dager per uke og aktiviteter. Ukene som
-  er gjennomført eller pågår beholdes som de er, og kommende uker bygges på nytt fra nivået du er på.
+- **Juster mål underveis:** målvekt, måldato, intensitet, treningsdager, utstyr og makspuls. Ukene som
+  er gjennomført eller pågår beholdes som de er. Mer trening trappes opp: de nye ukene starter på et
+  lavere nivå slik at økningen aldri blir mer enn 10 % per uke, og appen sier fra når alle dagene er med.
+- **Målinger** valideres (35–250 kg, 40–200 cm midje), kan registreres på valgfri dato og rettes eller slettes.
 - **Start helt på nytt:** valgfritt å beholde vektmålinger og tester.
 - **Samsung-klokke (Galaxy Watch):** økter hentes automatisk fra Samsung Health via Health Connect
   når appen åpnes. En økt samme dag og av samme slag som den planlagte krysser av den planlagte
@@ -60,7 +80,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 67 tester: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 92 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 
@@ -98,13 +118,21 @@ så man er innlogget med en gang etter registrering. Supabase sender likevel en 
 den kan ignoreres. Vil du heller slå av e-posten helt: Authentication → Sign In / Providers →
 Email → slå av «Confirm email».
 
+## Trygghetsregler (testes i `test/kontroll_test.dart`)
+
+- Planlagt belastning i en uke er maks 10 % over forrige vanlige uke (ekstraøkter telles ikke).
+- Lettuker er maks 90 % av forrige vanlige uke.
+- Aldri harde økter to dager på rad.
+- Endringer (fordel, «for lett», justering, fravær) kontrolleres med `safetyViolations` i tester.
+
 ## Struktur
 
 | Fil | Innhold |
 |---|---|
 | `lib/models.dart` | Profil, økt, uke, målinger, norsk datoformat |
-| `lib/plan_generator.dart` | Bygger planen: faser, lettuker, 10 %-grense, intervallstige |
-| `lib/compensation.dart` | Forslag ved tapt økt: flytt, fordel, stryk |
+| `lib/plan_generator.dart` | Bygger planen: faser, lettuker, egne treningsdager, 10 %-grense (`enforceLoadCap`, `safetyViolations`), intervallstige |
+| `lib/compensation.dart` | Forslag ved tapt økt: flytt, fordel, stryk – og angre |
+| `lib/move.dart` | Flytte/bytte økter innen uka uten harde økter på rad |
 | `lib/exercises.dart` | Øvelsesbibliotek og tegnede figurer |
 | `lib/workout_steps.dart` | Gjør en økt om til steg for timeren, med tekst som leses opp |
 | `lib/coach.dart` | Stemme (flutter_tts), musikk (just_audio) og våken skjerm |

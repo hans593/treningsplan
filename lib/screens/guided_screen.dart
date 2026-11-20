@@ -9,6 +9,7 @@ import '../main.dart';
 import '../models.dart';
 import '../widgets.dart';
 import '../workout_steps.dart';
+import 'session_screen.dart' show logWeights;
 
 class GuidedScreen extends StatefulWidget {
   final Session session;
@@ -34,7 +35,13 @@ class _GuidedScreenState extends State<GuidedScreen> {
     super.didChangeDependencies();
     if (_ticker == null) {
       final app = AppScope.of(context);
-      _steps = stepsFor(widget.session, senior: app.profile?.isSenior ?? false);
+      _steps = stepsFor(
+        widget.session,
+        senior: app.profile?.isSenior ?? false,
+        profile: app.profile,
+        swaps: app.exerciseSwaps,
+        extraRest: app.extraRestSec,
+      );
       _coach = Coach(voice: app.voiceOn, music: app.musicMode, genre: app.musicGenre);
       _coach!.start().then((_) => _announce());
       _startStep();
@@ -146,6 +153,10 @@ class _GuidedScreenState extends State<GuidedScreen> {
     await _coach?.say(finishSpeech);
     final f = await askFeeling(context);
     app.markDone(widget.session, feeling: f ?? Feeling.passe);
+    final t = widget.session.type;
+    if (mounted && (t == SessionType.styrkeA || t == SessionType.styrkeB)) {
+      await logWeights(context, widget.session);
+    }
     if (mounted) Navigator.pop(context);
   }
 
@@ -250,10 +261,10 @@ class _GuidedScreenState extends State<GuidedScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(color: brandOrange, borderRadius: BorderRadius.circular(99)),
-                        child: const Text('JOBB', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                        child: const Text('JOBB', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
                       ),
                     if (step.isRest)
-                      const Text('PAUSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                      const Text('PAUSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
                   ]),
                   const SizedBox(height: 10),
                   Text(step.title,
@@ -326,7 +337,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Text('Stopp ved brystsmerter, svimmelhet eller uvanlig tung pust.',
-                      textAlign: TextAlign.center, style: TextStyle(color: warnFg, fontSize: 13)),
+                      textAlign: TextAlign.center, style: TextStyle(color: warnFg, fontSize: 14)),
                 ),
             ],
           ),

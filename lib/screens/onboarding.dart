@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../main.dart';
 import '../models.dart';
+import '../plan_generator.dart' show defaultDays;
 import '../widgets.dart';
 import 'cloud_screen.dart';
 
@@ -20,9 +21,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   late DateTime _start, _end;
   late Fitness _fitness;
   late Intensity _intensity;
-  late int _days, _minutes;
+  late int _minutes;
+  late List<int> _trainingDays;
   late Set<Activity> _activities;
   late bool _health;
+  late bool _hrUnreliable;
+  late GoalType _goal;
+  late final TextEditingController _maxHr;
+
+  int get _days => _trainingDays.length;
   bool _inited = false;
 
   bool get _adjust => widget.initial != null;
@@ -51,9 +58,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _end = p?.endDate ?? _start.add(const Duration(days: 7 * 12));
     _fitness = p?.fitness ?? Fitness.gaarRaskt;
     _intensity = p?.intensity ?? Intensity.moderat;
-    _days = p?.daysPerWeek ?? 4;
+    _trainingDays = [...(p?.trainingDays ?? defaultDays(p?.daysPerWeek ?? 4))]..sort();
+    _hrUnreliable = p?.hrUnreliable ?? false;
+    _goal = p?.goal ?? GoalType.vektned;
+    _maxHr = TextEditingController(text: p?.maxHr?.toString() ?? '');
     _minutes = p?.minutesPerSession ?? 45;
-    _activities = p?.activities.toSet() ?? {Activity.manualer, Activity.raskGange, Activity.motbakker};
+    _activities = p?.activities.toSet() ?? {Activity.manualer, Activity.raskGange, Activity.motbakker, Activity.benk};
     _health = p?.healthWarning ?? false;
   }
 
@@ -72,7 +82,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       context: context,
       initialDate: start ? _start : (_end.isBefore(first) ? first : _end),
       firstDate: first,
-      lastDate: DateTime(2035),
+      // Planen kan vare i maks to år.
+      lastDate: start ? DateTime(2035) : AppScope.of(context).latestEndDate(_start),
       locale: const Locale('nb'),
     );
     if (d == null) return;
@@ -80,6 +91,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (start) {
         _start = d;
         if (!_end.isAfter(_start)) _end = _start.add(const Duration(days: 28));
+        final latest = AppScope.of(context).latestEndDate(_start);
+        if (_end.isAfter(latest)) _end = latest;
       } else {
         _end = d;
       }
@@ -101,15 +114,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _snack('Planen må vare minst to uker.');
       return;
     }
-    if (_activities.isEmpty) {
-      _snack('Velg minst én aktivitet.');
+    if (_weeks > maxPlanWeeks) {
+      _snack('Planen kan vare i maks $maxPlanWeeks uker (to år). Velg en tidligere måldato.');
       return;
     }
+    if (_days < 3 || _days > 6) {
+      _snack('Velg mellom 3 og 6 treningsdager.');
+      return;
+    }
+    final weight = _num(_weight.text)!;
     final p = Profile(
       age: _num(_age.text)!.round(),
       heightCm: _num(_height.text)!.round(),
-      weightKg: _num(_weight.text)!,
-      targetKg: _num(_target.text)!,
+      weightKg: weight,
+      targetKg: _goal == GoalType.holde ? weight : _num(_target.text)!,
       startDate: _start,
       endDate: _end,
       fitness: _fitness,
@@ -118,6 +136,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       minutesPerSession: _minutes,
       activities: _activities,
       healthWarning: _health,
+      trainingDays: [..._trainingDays],
+      maxHr: int.tryParse(_maxHr.text.trim()),
+      hrUnreliable: _hrUnreliable,
+      goal: _goal,
     );
     final perWeek = (p.weightKg - p.targetKg) / _weeksLeft;
     if (perWeek > p.weightKg * 0.01) {
@@ -138,9 +160,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final latest = app.latestWeight;
       final changed = latest == null || (latest - p.weightKg).abs() >= 0.05;
       final from = app.firstAdjustableWeek;
-      app.adjustPlan(p, currentWeightKg: changed ? p.weightKg : null);
+      final r = app.adjustPlan(p, currentWeightKg: changed ? p.weightKg : null);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(from == 0 ? 'Planen er laget på nytt' : 'Planen er justert fra uke ${from + 1}')));
+          duration: const Duration(seconds: 6),
+          content: Text(from == 0
+              ? 'Planen er laget på nytt'
+              : r.ramped
+                  ? 'Planen er justert fra uke ${from + 1}. Økningen trappes opp med maks 10 % per uke.'
+                  : 'Planen er justert fra uke ${from + 1}')));
       Navigator.pop(context);
     } else {
       app.createPlan(p);
@@ -173,6 +200,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]'))],
         validator: (v) => _range(v, lo, hi, unit),
       );
+
+  Widget _dayChips() => Wrap(spacing: 6, runSpacing: 6, children: [
+        for (var d = 0; d < 7; d++)
+          FilterChip(
+            label: Text(ukedagerKort[d].substring(0, 1) + ukedagerKort[d].substring(1).toLowerCase()),
+            tooltip: ukedager[d],
+            selected: _trainingDays.contains(d),
+            onSelected: (on) => setState(() {
+              if (on && _trainingDays.length < 6) _trainingDays.add(d);
+              if (!on && _trainingDays.length > 3) _trainingDays.remove(d);
+              _trainingDays.sort();
+            }),
+          ),
+      ]);
 
   Widget _section(String title, List<Widget> children) => Card(
         child: Padding(
@@ -224,10 +265,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Expanded(child: _field('Høyde', _height, 120, 220, 'cm')),
                 ]),
                 const SizedBox(height: 12),
+                SegmentedButton<GoalType>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: GoalType.vektned, label: Text('Gå ned i vekt')),
+                    ButtonSegment(value: GoalType.holde, label: Text('Holde vekten / bedre form')),
+                  ],
+                  selected: {_goal},
+                  onSelectionChanged: (s) => setState(() => _goal = s.first),
+                ),
+                const SizedBox(height: 12),
                 Row(children: [
                   Expanded(child: _field(_adjust ? 'Vekt i dag' : 'Vekt nå', _weight, 35, 250, 'kg')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _field('Målvekt', _target, 35, 250, 'kg')),
+                  if (_goal == GoalType.vektned) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: _field('Målvekt', _target, 35, 250, 'kg')),
+                  ],
                 ]),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<Fitness>(
@@ -262,8 +315,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(10)),
                   child: Text(
-                    perWeek == null
-                        ? '$_weeks uker'
+                    perWeek == null || _goal == GoalType.holde
+                        ? '$_weeks uker${_adjust ? ' ($_weeksLeft igjen)' : ''}'
                         : '$_weeks uker${_adjust ? ' ($_weeksLeft igjen)' : ''} · '
                             '${fmtKg(w! - t!)} kg ${_adjust ? 'igjen ' : ''}≈ ${perWeek.toStringAsFixed(2).replaceAll('.', ',')} kg per uke',
                     style: const TextStyle(fontSize: 14),
@@ -294,24 +347,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ]),
               const SizedBox(height: 12),
               _section('Hvor mye vil du trene?', [
-                Row(children: [
-                  const Expanded(child: Text('Treningsdager per uke', style: TextStyle(fontSize: 15))),
-                  IconButton.outlined(
-                    tooltip: 'Færre dager',
-                    onPressed: _days > 3 ? () => setState(() => _days--) : null,
-                    icon: const Icon(Icons.remove),
-                  ),
-                  SizedBox(
-                      width: 32,
-                      child: Text('$_days',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
-                  IconButton.outlined(
-                    tooltip: 'Flere dager',
-                    onPressed: _days < 6 ? () => setState(() => _days++) : null,
-                    icon: const Icon(Icons.add),
-                  ),
-                ]),
+                Text('Treningsdager: $_days per uke', style: const TextStyle(fontSize: 15)),
+                const SizedBox(height: 4),
+                const Text('Velg 3–6 dager. Appen legger intervallene der du har hviledag etter, og langturen i helga hvis mulig.',
+                    style: TextStyle(color: muted, fontSize: 14)),
+                const SizedBox(height: 8),
+                _dayChips(),
                 const SizedBox(height: 10),
                 const Text('Vanlig lengde på en økt', style: TextStyle(fontSize: 15)),
                 const SizedBox(height: 8),
@@ -330,13 +371,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ]),
               const SizedBox(height: 12),
-              _section('Aktiviteter du liker', [
+              _section('Aktiviteter og utstyr', [
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   for (final (a, label) in [
-                    (Activity.manualer, 'Manualer'),
-                    (Activity.raskGange, 'Rask gange'),
                     (Activity.motbakker, 'Motbakker'),
                     (Activity.jogging, 'Jogging'),
+                    (Activity.raskGange, 'Rask gange'),
+                    (Activity.manualer, 'Manualer'),
+                    (Activity.benk, 'Stødig stol eller benk'),
                   ])
                     FilterChip(
                       label: Text(label),
@@ -344,6 +386,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       onSelected: (on) => setState(() => on ? _activities.add(a) : _activities.remove(a)),
                     ),
                 ]),
+                const SizedBox(height: 8),
+                Text(
+                  _activities.contains(Activity.manualer)
+                      ? 'Styrkeøktene bruker manualene.'
+                      : 'Uten manualer får du øvelser med egen kroppsvekt.',
+                  style: const TextStyle(color: muted, fontSize: 14),
+                ),
               ]),
               const SizedBox(height: 12),
               _section('Helse', [
@@ -352,6 +401,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   value: _health,
                   onChanged: (v) => setState(() => _health = v ?? false),
                   title: const Text('Jeg har hjerte- eller lungesykdom, eller får symptomer ved anstrengelse'),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _maxHr,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: 'Egen makspuls (valgfritt)',
+                    helperText: 'Tom = anslått ut fra alder (${_num(_age.text) == null ? 'ca. 208 − 0,7 × alder' : 'ca. ${(208 - 0.7 * _num(_age.text)!).round()}'})',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    final n = int.tryParse(v);
+                    return n == null || n < 100 || n > 220 ? 'Mellom 100 og 220' : null;
+                  },
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _hrUnreliable,
+                  onChanged: (v) => setState(() => _hrUnreliable = v ?? false),
+                  title: const Text('Jeg bruker medisin som påvirker pulsen (f.eks. betablokker)'),
+                  subtitle: const Text('Da brukes ikke pulsen fra klokka til å bedømme hvor hard økta var.'),
                 ),
               ]),
               const SizedBox(height: 20),
@@ -365,9 +436,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   from == 0
                       ? 'Planen har ikke startet ennå, så den lages på nytt.'
                       : 'Uke 1–$from beholdes som de er, med alt du har registrert. '
-                          'Endringene gjelder fra uke ${from + 1}, og nivået fortsetter der du er nå.',
+                          'Endringene gjelder fra uke ${from + 1}. Mer trening trappes opp med maks 10 % per uke.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: muted, fontSize: 13),
+                  style: const TextStyle(color: muted, fontSize: 14),
                 ),
               ],
             ],

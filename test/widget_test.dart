@@ -30,7 +30,7 @@ void main() {
     await tester.pumpWidget(TreningsplanApp(state: app));
     await tester.pumpAndSettle();
     expect(find.text('Uke 3 av 22'), findsOneWidget);
-    expect(find.textContaining('Du sto over'), findsWidgets);
+    expect(find.textContaining('Har du vært borte'), findsOneWidget);
 
     // Dagens økt (torsdag = Styrke B)
     await tester.tap(find.text('Økt'));
