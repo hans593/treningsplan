@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../health_sync.dart';
 import '../main.dart';
 import '../models.dart';
 import '../widgets.dart';
@@ -18,6 +19,31 @@ class PlanScreen extends StatefulWidget {
 
 class _PlanScreenState extends State<PlanScreen> {
   int? _weekIndex;
+
+  Future<void> _startToday(BuildContext context) async {
+    final app = AppScope.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Start planen i dag?'),
+        content: Text('Planen bygges på nytt fra i dag, ${fmtDato(app.today)}, med samme mål og måldato. '
+            'Den første uka blir kort, og planen starter rolig.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Avbryt')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Start i dag')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    app.startToday();
+    setState(() => _weekIndex = null);
+    if (app.watchSync) {
+      final r = await HealthSync.instance.autoSync(app, force: true);
+      if (r != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r.summary)));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +112,22 @@ class _PlanScreenState extends State<PlanScreen> {
                 '${extras > 0 ? ' · $extras ekstra' : ''}',
                 style: const TextStyle(fontSize: 14, color: muted)),
             const SizedBox(height: 14),
+            if (app.notStarted) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Planen starter ${fmtDatoLang(app.profile!.startDate)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  const Text('Vil du heller begynne nå? Målet og måldatoen beholdes, og økter du '
+                      'har tatt på klokka i dag regnes med.', style: TextStyle(fontSize: 15, height: 1.35)),
+                  const SizedBox(height: 10),
+                  FilledButton(onPressed: () => _startToday(context), child: const Text('Start planen i dag')),
+                ]),
+              ),
+              const SizedBox(height: 10),
+            ],
             // Forklaring når planen er endret (lettere/tyngre, fravær, opptrapping)
             if (changes.isNotEmpty) ...[
               Container(

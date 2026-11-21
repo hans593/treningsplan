@@ -233,6 +233,25 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Planen har en startdato fram i tid.
+  bool get notStarted => profile != null && today.isBefore(dateOnly(profile!.startDate));
+
+  /// Flytt starten til i dag (bare før planen har startet). Sluttdato og mål beholdes.
+  /// Klokkeøkter som ble holdt utenfor fordi de var før start, vurderes på nytt ved neste henting.
+  void startToday() {
+    final p = profile;
+    if (p == null || !notStarted) return;
+    final oldStart = dateOnly(p.startDate);
+    measurements.removeWhere((m) => m.date == oldStart && m.weightKg == p.weightKg && m.waistCm == null);
+    for (final w in watchLog.where((w) => !dateOnly(w.start).isBefore(today) && w.outcome.startsWith('Før planen'))) {
+      importedWorkoutIds.remove(w.id);
+      w.outcome = '';
+    }
+    createPlan(p.copyWith(startDate: today));
+    _log(0, 'Planen er flyttet til å starte i dag, ${fmtDato(today)}.');
+    _changed();
+  }
+
   int get currentWeekIndex => weekFor(today)?.index ?? (today.isBefore(weeks.first.monday) ? -1 : weeks.length);
 
   /// Første uke som kan endres når målene justeres (uka etter denne).

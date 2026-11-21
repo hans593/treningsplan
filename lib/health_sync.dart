@@ -79,10 +79,10 @@ class HealthSync {
   }
 
   /// Automatisk henting ved oppstart og når appen åpnes igjen (maks hvert 10. minutt).
-  Future<ImportResult?> autoSync(AppState app) async {
+  Future<ImportResult?> autoSync(AppState app, {bool force = false}) async {
     if (!app.watchSync || !Platform.isAndroid) return null;
     final now = DateTime.now();
-    if (_lastAutoSync != null && now.difference(_lastAutoSync!).inMinutes < 10) return null;
+    if (!force && _lastAutoSync != null && now.difference(_lastAutoSync!).inMinutes < 10) return null;
     _lastAutoSync = now;
     try {
       if (!await hasAccess()) return null;

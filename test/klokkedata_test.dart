@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:treningsplan/models.dart';
+import 'package:treningsplan/plan_generator.dart';
 import 'package:treningsplan/state.dart';
 import 'package:treningsplan/watch_import.dart';
 
@@ -77,5 +78,28 @@ void main() {
     app.importFromWatch([gaatur(DateTime(2026, 12, 9, 10), id: 'gml', min: lang.minutes)]);
     expect(lang.watchId, 'gml');
     expect(app.watchDataById('gml')!.outcome, contains('Krysset av'));
+  });
+
+  test('start planen i dag: dagens klokkeøkt regnes med, og sikkerhetsreglene holder', () async {
+    SharedPreferences.setMockInitialValues({});
+    final now = DateTime(2026, 11, 21, 15, 30); // lørdag
+    final app = AppState(clock: () => now);
+    await app.load();
+    app.createPlan(hansProfil()); // start 1. des
+    expect(app.notStarted, isTrue);
+    app.importFromWatch([gaatur(DateTime(2026, 11, 21, 13), id: 'idag')]);
+    expect(app.watchDataById('idag')!.outcome, contains('Før planen'));
+
+    app.startToday();
+    expect(app.notStarted, isFalse);
+    expect(app.profile!.startDate, DateTime(2026, 11, 21));
+    expect(app.profile!.endDate, hansProfil().endDate);
+    expect(safetyViolations(app.weeks, startDate: app.profile!.startDate), isEmpty);
+    expect(app.measurements.where((m) => m.date == DateTime(2026, 12, 1)), isEmpty);
+
+    app.importFromWatch([gaatur(DateTime(2026, 11, 21, 13), id: 'idag')]);
+    final d = app.watchDataById('idag')!;
+    expect(d.outcome, isNot(contains('Før planen')));
+    expect(app.weeks.expand((w) => w.sessions).where((s) => s.watchId == 'idag'), hasLength(1));
   });
 }

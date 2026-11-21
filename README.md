@@ -38,6 +38,7 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
   2–4 uker: to, 4–6 uker: tre, over 6 uker: fra start). Måldatoen kan flyttes like mange uker. Har du vært
   borte en stund uten å registrere det, foreslår appen fravær samlet i stedet for mange varsler.
   «Tilbake nå» avslutter fraværet før tiden.
+- **Start planen i dag:** før startdatoen vises en knapp som flytter starten til i dag (mål og måldato beholdes).
 - **Egne treningsdager:** velg 3–6 ukedager. Intervallene legges der du har hviledag etter, langturen i helga.
 - **Flytte eller bytte en økt** med en annen dag i samme uke (dager som ville gitt harde økter på rad er sperret).
 - **Gjør lettere i dag:** kortere økt eller bytt til rolig tur – bare nedover, alltid trygt.
@@ -86,7 +87,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 99 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 100 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 
