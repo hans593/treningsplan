@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../exercises.dart';
+import '../health_sync.dart';
 import '../main.dart';
 import '../models.dart';
 import '../move.dart';
@@ -229,6 +230,22 @@ class SessionScreen extends StatelessWidget {
             icon: const Icon(Icons.edit),
             label: const Text('Endre registrering'),
           ),
+          if (s.watchId == null && app.watchSync)
+            TextButton.icon(
+              onPressed: () async {
+                final r = await HealthSync.instance.autoSync(app, force: true);
+                if (!context.mounted) return;
+                final found = app.watchDataById(s.watchId) != null;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(found
+                        ? 'Klokkedata hentet.'
+                        : r == null
+                            ? 'Fikk ikke kontakt med Health Connect.'
+                            : 'Fant ingen økt fra klokka denne dagen. Åpne Samsung Health så den synkroniserer, og prøv igjen.')));
+              },
+              icon: const Icon(Icons.watch),
+              label: const Text('Hent fra klokka'),
+            ),
           TextButton(onPressed: () => app.markNotDone(s), child: const Text('Angre avkryssing')),
         ] else ...[
           FilledButton(

@@ -102,4 +102,19 @@ void main() {
     expect(d.outcome, isNot(contains('Før planen')));
     expect(app.weeks.expand((w) => w.sessions).where((s) => s.watchId == 'idag'), hasLength(1));
   });
+
+  test('økt krysset av for hånd får klokkedata, uten ekstra dobbeltregistrering', () async {
+    SharedPreferences.setMockInitialValues({});
+    final now = DateTime(2026, 12, 9, 20);
+    final app = AppState(clock: () => now);
+    await app.load();
+    app.createPlan(hansProfil());
+    final lang = app.weeks.expand((w) => w.sessions).firstWhere((s) => s.date == DateTime(2026, 12, 9));
+    app.markDone(lang);
+    final before = app.weeks.expand((w) => w.sessions).length;
+    app.importFromWatch([gaatur(DateTime(2026, 12, 9, 10), id: 'hand', min: lang.minutes)]);
+    expect(lang.watchId, 'hand');
+    expect(app.weeks.expand((w) => w.sessions).length, before);
+    expect(app.watchDataById('hand')!.outcome, contains('for hånd'));
+  });
 }

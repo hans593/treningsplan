@@ -87,7 +87,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 100 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 101 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 

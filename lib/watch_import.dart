@@ -223,6 +223,15 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
     }
     final type = typeFor(w.activity);
     final effort = effortFor(w, p.age, maxHr: p.maxHr, ignoreHr: p.hrUnreliable);
+    // Allerede krysset av for hånd samme dag: koble klokkedataene til den, ikke registrer på nytt.
+    final manual = _doneWithoutWatch(app, day, type, w.minutes);
+    if (manual != null) {
+      manual.watchId = w.id;
+      data.outcome = 'Koblet til «${manual.title}» (krysset av for hånd)';
+      result.lines.add('${fmtUkedag(day)}: klokkedata koblet til «${manual.title}»');
+      app.importedWorkoutIds.add(w.id);
+      continue;
+    }
     final planned = _matchPlanned(app, w, type, effort);
     if (planned != null) {
       if (planned.status == SessionStatus.planlagt) {
@@ -257,7 +266,25 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
   return result;
 }
 
-/// Økter hentet før klokkedata ble lagret: koble dem til økta de krysset av (samme dag, «Fra klokka»).
+/// Fullført økt samme dag og kategori som ennå ikke har klokkedata (krysset av for hånd).
+Session? _doneWithoutWatch(AppState app, DateTime day, SessionType type, int minutes) {
+  final c = (app.weekFor(day)?.sessions ?? const <Session>[])
+      .where((s) =>
+          s.date == day &&
+          s.watchId == null &&
+          s.status == SessionStatus.fullfort &&
+          s.category == categoryOf(type))
+      .toList()
+    ..sort((a, b) {
+      // Planlagte økter før ekstra, deretter nærmest i tid.
+      final e = (a.extra ? 1 : 0) - (b.extra ? 1 : 0);
+      return e != 0 ? e : (a.minutes - minutes).abs() - (b.minutes - minutes).abs();
+    });
+  return c.firstOrNull;
+}
+
+/// Økter hentet før klokkedata ble lagret: koble dem til økta de krysset av samme dag
+/// («Fra klokka» først, ellers en økt krysset av for hånd).
 void _linkExisting(AppState app, WatchData data, DateTime day) {
   final all = app.weeks.expand((w) => w.sessions);
   if (all.any((s) => s.watchId == data.id)) return;
@@ -265,10 +292,24 @@ void _linkExisting(AppState app, WatchData data, DateTime day) {
       .where((s) => s.date == day && s.watchId == null && (s.note ?? '').toLowerCase().contains('fra klokka'))
       .toList()
     ..sort((a, b) => (a.minutes - data.minutes).abs() - (b.minutes - data.minutes).abs());
-  final s = candidates.firstOrNull;
+  final type = all.where((s) => s.date == day).isEmpty ? null : _typeOfActivity(data.activity);
+  final s = candidates.firstOrNull ?? (type == null ? null : _doneWithoutWatch(app, day, type, data.minutes));
   if (s == null) return;
   s.watchId = data.id;
-  if (data.outcome.isEmpty) data.outcome = s.extra ? 'Registrert som ekstra økt' : 'Krysset av «${s.title}»';
+  if (data.outcome.isEmpty || data.outcome.startsWith('Før planen')) {
+    data.outcome = s.extra
+        ? 'Registrert som ekstra økt'
+        : (s.note ?? '').toLowerCase().contains('fra klokka')
+            ? 'Krysset av «${s.title}»'
+            : 'Koblet til «${s.title}» (krysset av for hånd)';
+  }
+}
+
+SessionType? _typeOfActivity(String label) {
+  for (final a in WatchActivity.values) {
+    if (titleFor(a) == label) return typeFor(a);
+  }
+  return null;
 }
 
 /// Vekt fra smartvekt via Samsung Health. Én måling per dag (den siste).
