@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../models.dart';
+
 import '../health_sync.dart';
 import '../main.dart';
 import '../widgets.dart';
+import 'watch_details.dart';
 
 class WatchScreen extends StatefulWidget {
   const WatchScreen({super.key});
@@ -156,6 +159,15 @@ class _WatchScreenState extends State<WatchScreen> {
           ],
           for (final l in _lines)
             Padding(padding: const EdgeInsets.only(top: 6), child: Text('• $l', style: const TextStyle(fontSize: 14))),
+          if (app.watchLog.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Økter fra klokka', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text('Trykk på en økt for tid, puls og pulssoner.', style: TextStyle(color: muted, fontSize: 14)),
+            const SizedBox(height: 8),
+            for (final d in app.watchLog.take(30))
+              WatchLogTile(d, onTap: () => openWatchDetails(context, d)),
+          ],
           const SizedBox(height: 16),
           _Info(app.profile?.hrUnreliable ?? false
               ? 'Du har oppgitt at medisin påvirker pulsen, så anstrengelsen bedømmes ut fra aktiviteten og ikke pulsen.'
@@ -179,4 +191,21 @@ class _Info extends StatelessWidget {
         decoration: BoxDecoration(color: const Color(0xFFEEF2EF), borderRadius: BorderRadius.circular(12)),
         child: Text(text, style: const TextStyle(fontSize: 14, height: 1.45)),
       );
+}
+
+
+void openWatchDetails(BuildContext context, WatchData d) {
+  final app = AppScope.of(context);
+  final s = app.weeks.expand((w) => w.sessions).where((x) => x.watchId == d.id).firstOrNull;
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(d.activity)),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          WatchDetailsCard(d, planned: s == null || s.extra ? null : s, hrUnreliable: app.profile?.hrUnreliable ?? false),
+        ]),
+      ),
+    ),
+  );
 }

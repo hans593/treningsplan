@@ -95,10 +95,12 @@ class HealthSync {
   /// Hent nye økter siden sist (med to dagers overlapp) og legg dem inn i planen.
   Future<ImportResult> sync(AppState app) async {
     await _configure();
-    final p = app.profile!;
     final now = DateTime.now();
-    var from = app.lastWatchSync?.subtract(const Duration(days: 2)) ?? p.startDate;
-    if (from.isBefore(p.startDate)) from = p.startDate;
+    // Første gang (eller før detaljene ble lagret): hent siste 30 dager, også før planen startet,
+    // så det klokka registrerte kan vises.
+    var from = app.watchLog.isEmpty || app.lastWatchSync == null
+        ? now.subtract(const Duration(days: 30))
+        : app.lastWatchSync!.subtract(const Duration(days: 2));
     if (now.difference(from).inDays > 60) from = now.subtract(const Duration(days: 60));
 
     final workoutsRaw = await _health.getHealthDataFromTypes(
@@ -114,6 +116,20 @@ class HealthSync {
         endTime: now,
       );
     } catch (_) {}
+    List<HealthDataPoint> steps = [];
+    List<HealthDataPoint> dist = [];
+    try {
+      steps = await _health.getHealthDataFromTypes(types: [HealthDataType.STEPS], startTime: from, endTime: now);
+    } catch (_) {}
+    try {
+      dist = await _health.getHealthDataFromTypes(types: [HealthDataType.DISTANCE_DELTA], startTime: from, endTime: now);
+    } catch (_) {}
+    // Sum av målinger som ligger innenfor økta.
+    int? sumIn(List<HealthDataPoint> pts, DateTime a, DateTime b) {
+      final inside = pts.where((x) => !x.dateFrom.isBefore(a) && !x.dateTo.isAfter(b) && x.value is NumericHealthValue);
+      if (inside.isEmpty) return null;
+      return inside.fold<double>(0, (t, x) => t + (x.value as NumericHealthValue).numericValue.toDouble()).round();
+    }
     List<HealthDataPoint> weightRaw = [];
     try {
       weightRaw = await _health.getHealthDataFromTypes(
@@ -127,11 +143,12 @@ class HealthSync {
     for (final d in workoutsRaw) {
       final v = d.value;
       if (v is! WorkoutHealthValue) continue;
-      final pulses = hr
-          .where((h) => !h.dateFrom.isBefore(d.dateFrom) && !h.dateFrom.isAfter(d.dateTo))
-          .map((h) => (h.value as NumericHealthValue).numericValue.toDouble())
-          .where((x) => x > 30 && x < 230)
-          .toList();
+      final samples = [
+        for (final h in hr)
+          if (!h.dateFrom.isBefore(d.dateFrom) && !h.dateFrom.isAfter(d.dateTo) && h.value is NumericHealthValue)
+            (h.dateFrom, (h.value as NumericHealthValue).numericValue.toDouble())
+      ];
+      final pulses = samples.map((x) => x.$2).where((x) => x > 30 && x < 230).toList();
       workouts.add(ImportedWorkout(
         id: d.uuid,
         start: d.dateFrom,
@@ -140,8 +157,10 @@ class HealthSync {
         avgHr: pulses.isEmpty ? null : pulses.reduce((a, b) => a + b) / pulses.length,
         maxHr: pulses.isEmpty ? null : pulses.reduce((a, b) => a > b ? a : b),
         kcal: v.totalEnergyBurned,
-        distanceM: v.totalDistance,
+        distanceM: (v.totalDistance ?? 0) > 0 ? v.totalDistance : sumIn(dist, d.dateFrom, d.dateTo),
+        steps: v.totalSteps ?? sumIn(steps, d.dateFrom, d.dateTo),
         source: d.sourceName,
+        hrSamples: samples,
       ));
     }
     final weights = [

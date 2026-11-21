@@ -9,6 +9,7 @@ import '../move.dart';
 import '../widgets.dart';
 import 'extra_session_screen.dart';
 import 'guided_screen.dart';
+import 'watch_details.dart';
 import 'missed_screen.dart';
 
 class SessionScreen extends StatelessWidget {
@@ -73,6 +74,10 @@ class SessionScreen extends StatelessWidget {
                     })),
         ]),
         const SizedBox(height: 14),
+        if (app.watchDataById(s.watchId) case final wd?) ...[
+          WatchDetailsCard(wd, planned: s.extra ? null : s, hrUnreliable: app.profile?.hrUnreliable ?? false),
+          const SizedBox(height: 14),
+        ],
         if (isStrength) ...[
           const Text('Varm opp 5–8 min først. Kontrollerte bevegelser – ingen hopp eller raske løft.',
               style: TextStyle(color: muted)),

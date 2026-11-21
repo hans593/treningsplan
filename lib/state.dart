@@ -60,6 +60,20 @@ class AppState extends ChangeNotifier {
   DateTime? lastWatchSync;
   Set<String> importedWorkoutIds = {};
 
+  /// Det klokka registrerte (siste 90 dager), nyeste først.
+  List<WatchData> watchLog = [];
+
+  WatchData? watchDataById(String? id) => id == null ? null : watchLog.where((w) => w.id == id).firstOrNull;
+
+  void putWatchData(WatchData d) {
+    watchLog.removeWhere((w) => w.id == d.id);
+    watchLog.add(d);
+    watchLog.sort((a, b) => b.start.compareTo(a.start));
+    final cut = clock().subtract(const Duration(days: 90));
+    watchLog.removeWhere((w) => w.start.isBefore(cut));
+    if (watchLog.length > 150) watchLog = watchLog.sublist(0, 150);
+  }
+
   // Guidet økt
   bool voiceOn = true;
   MusicMode musicMode = MusicMode.appen;
@@ -109,6 +123,7 @@ class AppState extends ChangeNotifier {
         'watchSync': watchSync,
         'lastWatchSync': lastWatchSync?.toIso8601String(),
         'importedWorkoutIds': importedWorkoutIds.toList(),
+        'watchLog': watchLog.map((w) => w.toJson()).toList(),
         'modifiedAt': modifiedAt?.toIso8601String(),
         'voiceOn': voiceOn,
         'musicMode': musicMode.name,
@@ -129,6 +144,7 @@ class AppState extends ChangeNotifier {
     watchSync = j['watchSync'] ?? false;
     lastWatchSync = j['lastWatchSync'] == null ? null : DateTime.parse(j['lastWatchSync']);
     importedWorkoutIds = ((j['importedWorkoutIds'] as List?) ?? []).cast<String>().toSet();
+    watchLog = [for (final w in (j['watchLog'] as List?) ?? []) WatchData.fromJson(Map<String, dynamic>.from(w))];
     modifiedAt = j['modifiedAt'] == null ? null : DateTime.parse(j['modifiedAt']);
     voiceOn = j['voiceOn'] ?? true;
     musicMode = MusicMode.values.asNameMap()[j['musicMode']] ?? MusicMode.appen;

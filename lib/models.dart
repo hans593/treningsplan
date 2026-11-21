@@ -234,6 +234,9 @@ class Session {
   /// Vekt og repetisjoner per øvelse (styrke).
   Map<String, ExLog> exLog;
 
+  /// Id til økta fra klokka som krysset av eller registrerte denne (se AppState.watchLog).
+  String? watchId;
+
   Session({
     required this.id,
     required DateTime date,
@@ -257,6 +260,7 @@ class Session {
     this.ease,
     List<String>? compRefs,
     Map<String, ExLog>? exLog,
+    this.watchId,
   })  : date = dateOnly(date),
         compRefs = compRefs ?? [],
         exLog = exLog ?? {};
@@ -317,6 +321,7 @@ class Session {
         'ease': ease?.name,
         'compRefs': compRefs,
         'exLog': exLog.map((k, v) => MapEntry(k, v.toJson())),
+        if (watchId != null) 'watchId': watchId,
       };
 
   factory Session.fromJson(Map<String, dynamic> j) => Session(
@@ -342,6 +347,7 @@ class Session {
         ease: Ease.values.asNameMap()[j['ease']],
         compRefs: (j['compRefs'] as List?)?.cast<String>(),
         exLog: (j['exLog'] as Map?)?.map((k, v) => MapEntry(k as String, ExLog.fromJson(Map<String, dynamic>.from(v)))),
+        watchId: j['watchId'],
       );
 }
 
@@ -505,3 +511,95 @@ String fmtSek(int s) {
   if (s < 60) return '$s sek';
   return '${s ~/ 60} min ${s % 60} sek';
 }
+
+
+/// Det klokka faktisk registrerte for én økt.
+class WatchData {
+  final String id;
+  final DateTime start;
+  final DateTime end;
+  final String activity; // f.eks. «Gåtur»
+  final String source; // f.eks. Samsung Health
+  final int? avgHr;
+  final int? maxHr;
+  final int? minHr;
+  final int? kcal;
+  final int? distanceM;
+  final int? steps;
+
+  /// Sekunder i pulssone 1–5 (under 60 %, 60–70, 70–80, 80–90, over 90 % av makspuls).
+  final List<int> zoneSec;
+
+  /// Snittpuls per minutt (0 = ingen måling det minuttet).
+  final List<int> hrCurve;
+
+  /// Makspulsen sonene er regnet ut fra.
+  final int hrMaxUsed;
+
+  /// Hva appen gjorde med økta (krysset av, ekstra, før planen …).
+  String outcome;
+
+  WatchData({
+    required this.id,
+    required this.start,
+    required this.end,
+    required this.activity,
+    this.source = '',
+    this.avgHr,
+    this.maxHr,
+    this.minHr,
+    this.kcal,
+    this.distanceM,
+    this.steps,
+    this.zoneSec = const [0, 0, 0, 0, 0],
+    this.hrCurve = const [],
+    this.hrMaxUsed = 160,
+    this.outcome = '',
+  });
+
+  int get minutes => end.difference(start).inMinutes;
+  bool get hasHr => avgHr != null;
+
+  /// Tempo i sekunder per km.
+  int? get paceSecPerKm =>
+      distanceM == null || distanceM! < 200 ? null : (end.difference(start).inSeconds * 1000 / distanceM!).round();
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'start': start.toIso8601String(),
+        'end': end.toIso8601String(),
+        'activity': activity,
+        'source': source,
+        'avgHr': avgHr,
+        'maxHr': maxHr,
+        'minHr': minHr,
+        'kcal': kcal,
+        'distanceM': distanceM,
+        'steps': steps,
+        'zoneSec': zoneSec,
+        'hrCurve': hrCurve,
+        'hrMaxUsed': hrMaxUsed,
+        'outcome': outcome,
+      };
+
+  factory WatchData.fromJson(Map<String, dynamic> j) => WatchData(
+        id: j['id'],
+        start: DateTime.parse(j['start']),
+        end: DateTime.parse(j['end']),
+        activity: j['activity'] ?? '',
+        source: j['source'] ?? '',
+        avgHr: j['avgHr'],
+        maxHr: j['maxHr'],
+        minHr: j['minHr'],
+        kcal: j['kcal'],
+        distanceM: j['distanceM'],
+        steps: j['steps'],
+        zoneSec: ((j['zoneSec'] as List?) ?? const [0, 0, 0, 0, 0]).cast<int>(),
+        hrCurve: ((j['hrCurve'] as List?) ?? const []).cast<int>(),
+        hrMaxUsed: j['hrMaxUsed'] ?? 160,
+        outcome: j['outcome'] ?? '',
+      );
+}
+
+/// «14:05»
+String fmtKl(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';

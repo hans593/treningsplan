@@ -17,7 +17,11 @@ class ImportedWorkout {
   final double? maxHr;
   final int? kcal;
   final int? distanceM;
+  final int? steps;
   final String source;
+
+  /// Pulsmålinger under økta (tid, slag per minutt).
+  final List<(DateTime, double)> hrSamples;
 
   const ImportedWorkout({
     required this.id,
@@ -28,7 +32,9 @@ class ImportedWorkout {
     this.maxHr,
     this.kcal,
     this.distanceM,
+    this.steps,
     this.source = '',
+    this.hrSamples = const [],
   });
 
   int get minutes => end.difference(start).inMinutes;
@@ -52,6 +58,59 @@ class ImportResult {
     ];
     return parts.isEmpty ? 'Ingen nye økter fra klokka' : 'Fra klokka: ${parts.join(', ')}';
   }
+}
+
+/// Gjør pulsmålingene om til det som vises: snitt, maks, tid i soner og en kurve per minutt.
+/// Hver måling gjelder fram til neste (maks 2 min, så hull i målingene ikke teller).
+WatchData watchDataFor(ImportedWorkout w, double hrMax) {
+  final samples = w.hrSamples
+      .where((x) => x.$2 > 30 && x.$2 < 230 && !x.$1.isBefore(w.start) && !x.$1.isAfter(w.end))
+      .toList()
+    ..sort((a, b) => a.$1.compareTo(b.$1));
+  final zones = [0, 0, 0, 0, 0];
+  final minutes = max(1, (w.end.difference(w.start).inSeconds / 60).ceil());
+  final sum = List<double>.filled(minutes, 0);
+  final cnt = List<int>.filled(minutes, 0);
+  for (var i = 0; i < samples.length; i++) {
+    final (t, bpm) = samples[i];
+    final next = i + 1 < samples.length ? samples[i + 1].$1 : w.end;
+    final sec = min(120, max(1, next.difference(t).inSeconds));
+    final pct = bpm / hrMax;
+    final z = pct < 0.6 ? 0 : pct < 0.7 ? 1 : pct < 0.8 ? 2 : pct < 0.9 ? 3 : 4;
+    zones[z] += sec;
+    final m = min(minutes - 1, t.difference(w.start).inSeconds ~/ 60);
+    sum[m] += bpm;
+    cnt[m]++;
+  }
+  final bpms = samples.map((x) => x.$2).toList();
+  // Bruk tidsvektet snitt når vi har målinger, ellers det Health Connect oppga.
+  double? avg = w.avgHr;
+  if (bpms.isNotEmpty) {
+    var tot = 0.0, secs = 0;
+    for (var i = 0; i < samples.length; i++) {
+      final next = i + 1 < samples.length ? samples[i + 1].$1 : w.end;
+      final sec = min(120, max(1, next.difference(samples[i].$1).inSeconds));
+      tot += samples[i].$2 * sec;
+      secs += sec;
+    }
+    avg = tot / secs;
+  }
+  return WatchData(
+    id: w.id,
+    start: w.start,
+    end: w.end,
+    activity: titleFor(w.activity),
+    source: w.source,
+    avgHr: avg?.round(),
+    maxHr: bpms.isNotEmpty ? bpms.reduce(max).round() : w.maxHr?.round(),
+    minHr: bpms.isNotEmpty ? bpms.reduce(min).round() : null,
+    kcal: w.kcal,
+    distanceM: w.distanceM,
+    steps: w.steps,
+    zoneSec: zones,
+    hrCurve: [for (var m = 0; m < minutes; m++) cnt[m] == 0 ? 0 : (sum[m] / cnt[m]).round()],
+    hrMaxUsed: hrMax.round(),
+  );
 }
 
 /// Makspuls anslått ut fra alder (Tanaka: 208 − 0,7 × alder).
@@ -139,12 +198,26 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
   if (p == null || app.weeks.isEmpty) return result;
   final first = app.weeks.first.monday.isBefore(p.startDate) ? p.startDate : app.weeks.first.monday;
 
+  final hrMax = (p.maxHr ?? maxHrFor(p.age)).toDouble();
   final sorted = [...workouts]..sort((a, b) => a.start.compareTo(b.start));
   for (final w in sorted) {
-    if (app.importedWorkoutIds.contains(w.id)) continue;
+    // Det klokka registrerte, lagres alltid (også økter som ikke påvirker planen).
+    final data = watchDataFor(w, hrMax);
+    final old = app.watchLog.where((x) => x.id == w.id).firstOrNull;
+    if (old != null) data.outcome = old.outcome;
+    app.putWatchData(data);
     final day = dateOnly(w.start);
+    if (app.importedWorkoutIds.contains(w.id)) {
+      _linkExisting(app, data, day);
+      continue;
+    }
     // For korte, utenfor planen eller i fremtiden: hopp over (men husk den).
     if (w.minutes < 10 || day.isBefore(first) || day.isAfter(app.today) || app.weekFor(day) == null) {
+      data.outcome = w.minutes < 10
+          ? 'Kortere enn 10 min – ikke regnet med'
+          : day.isBefore(first)
+              ? 'Før planen startet – ikke regnet med'
+              : 'Utenfor planen';
       app.importedWorkoutIds.add(w.id);
       continue;
     }
@@ -158,6 +231,8 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
         app.backRegister(planned);
       }
       planned.note = 'Fra klokka: ${_detail(w)}';
+      planned.watchId = w.id;
+      data.outcome = 'Krysset av «${planned.title}»';
       result.markedDone++;
       result.lines.add('${fmtUkedag(day)}: «${planned.title}» krysset av (${_detail(w)})');
     } else {
@@ -170,6 +245,8 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
       );
       final extra = app.weekFor(day)!.sessions.lastWhere((s) => s.extra && s.date == day);
       extra.note = extra.covers != null ? '${extra.note} · fra klokka' : 'Fra klokka: ${_detail(w)}';
+      extra.watchId = w.id;
+      data.outcome = 'Registrert som ekstra økt${covered.isNotEmpty ? ' – tar igjen «${covered.first.title}»' : ''}';
       result.extras++;
       result.covered += covered.length;
       result.lines.add('${fmtUkedag(day)}: ${titleFor(w.activity)} registrert som ekstra (${_detail(w)})'
@@ -178,6 +255,20 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
     app.importedWorkoutIds.add(w.id);
   }
   return result;
+}
+
+/// Økter hentet før klokkedata ble lagret: koble dem til økta de krysset av (samme dag, «Fra klokka»).
+void _linkExisting(AppState app, WatchData data, DateTime day) {
+  final all = app.weeks.expand((w) => w.sessions);
+  if (all.any((s) => s.watchId == data.id)) return;
+  final candidates = all
+      .where((s) => s.date == day && s.watchId == null && (s.note ?? '').toLowerCase().contains('fra klokka'))
+      .toList()
+    ..sort((a, b) => (a.minutes - data.minutes).abs() - (b.minutes - data.minutes).abs());
+  final s = candidates.firstOrNull;
+  if (s == null) return;
+  s.watchId = data.id;
+  if (data.outcome.isEmpty) data.outcome = s.extra ? 'Registrert som ekstra økt' : 'Krysset av «${s.title}»';
 }
 
 /// Vekt fra smartvekt via Samsung Health. Én måling per dag (den siste).
