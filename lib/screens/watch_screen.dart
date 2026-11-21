@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models.dart';
 
@@ -53,6 +54,33 @@ class _WatchScreenState extends State<WatchScreen> {
     }
     await _refresh();
     if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _diagnose() async {
+    setState(() => _busy = true);
+    final app = AppScope.of(context);
+    String text;
+    try {
+      text = await HealthSync.instance.diagnose(app);
+    } catch (e) {
+      text = 'Feilsøking feilet: $e';
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Feilsøk'),
+        content: SingleChildScrollView(child: SelectableText(text, style: const TextStyle(fontSize: 13))),
+        actions: [
+          TextButton(
+            onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+            child: const Text('Kopier'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Lukk')),
+        ],
+      ),
+    );
   }
 
   Future<void> _syncNow() async {
@@ -145,6 +173,11 @@ class _WatchScreenState extends State<WatchScreen> {
                 label: const Text('Hent nå'),
               ),
             ],
+            TextButton.icon(
+              onPressed: _busy ? null : _diagnose,
+              icon: const Icon(Icons.bug_report_outlined),
+              label: const Text('Feilsøk: hva finnes i Health Connect?'),
+            ),
             const SizedBox(height: 8),
             Text(
               app.lastWatchSync == null ? 'Ikke hentet ennå' : 'Sist hentet ${fmtTid(app.lastWatchSync!)}',

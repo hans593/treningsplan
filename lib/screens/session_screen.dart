@@ -230,18 +230,27 @@ class SessionScreen extends StatelessWidget {
             icon: const Icon(Icons.edit),
             label: const Text('Endre registrering'),
           ),
-          if (s.watchId == null && app.watchSync)
+          if (s.watchId == null)
             TextButton.icon(
               onPressed: () async {
-                final r = await HealthSync.instance.autoSync(app, force: true);
-                if (!context.mounted) return;
-                final found = app.watchDataById(s.watchId) != null;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(found
+                final hs = HealthSync.instance;
+                String msg;
+                try {
+                  if (await hs.status() != WatchStatus.klar || !await hs.hasAccess()) {
+                    msg = 'Klokka er ikke koblet til. Gå til Profil → Samsung-klokke og trykk «Koble til».';
+                  } else {
+                    await hs.sync(app);
+                    msg = app.watchDataById(s.watchId) != null
                         ? 'Klokkedata hentet.'
-                        : r == null
-                            ? 'Fikk ikke kontakt med Health Connect.'
-                            : 'Fant ingen økt fra klokka denne dagen. Åpne Samsung Health så den synkroniserer, og prøv igjen.')));
+                        : 'Fant ingen økt fra klokka ${fmtUkedag(s.date).toLowerCase()}. '
+                            'Trykk «Feilsøk» under Profil → Samsung-klokke for å se hva som finnes.';
+                  }
+                } catch (e) {
+                  msg = 'Kunne ikke hente fra Health Connect: $e';
+                }
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(msg), duration: const Duration(seconds: 8)));
               },
               icon: const Icon(Icons.watch),
               label: const Text('Hent fra klokka'),

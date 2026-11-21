@@ -92,6 +92,55 @@ class HealthSync {
     }
   }
 
+  /// Feilsøking: hva Health Connect gir appen de siste [days] dagene, og fra hvilke kilder.
+  Future<String> diagnose(AppState app, {int days = 3}) async {
+    final out = StringBuffer();
+    final now = DateTime.now();
+    final from = now.subtract(Duration(days: days));
+    out.writeln('Status: ${await status()}');
+    out.writeln('Henting slått på i appen: ${app.watchSync ? 'ja' : 'NEI'}');
+    out.writeln('Sist hentet: ${app.lastWatchSync ?? 'aldri'}');
+    out.writeln('Økter fra klokka lagret: ${app.watchLog.length}');
+    try {
+      await _configure();
+      for (final t in _types) {
+        bool? ok;
+        try {
+          ok = await _health.hasPermissions([t], permissions: [HealthDataAccess.READ]);
+        } catch (e) {
+          ok = null;
+        }
+        out.writeln('Tilgang ${t.name}: ${ok == true ? 'ja' : ok == false ? 'NEI' : 'ukjent'}');
+      }
+    } catch (e) {
+      out.writeln('Tilgangssjekk feilet: $e');
+    }
+    out.writeln('');
+    out.writeln('Siste $days dager i Health Connect:');
+    for (final t in [HealthDataType.WORKOUT, HealthDataType.HEART_RATE, HealthDataType.STEPS]) {
+      try {
+        final pts = await _health.getHealthDataFromTypes(types: [t], startTime: from, endTime: now);
+        final sources = <String, int>{};
+        for (final p in pts) {
+          sources[p.sourceName] = (sources[p.sourceName] ?? 0) + 1;
+        }
+        out.writeln('${t.name}: ${pts.length} '
+            '${sources.isEmpty ? '' : '(${sources.entries.map((e) => '${e.key}: ${e.value}').join(', ')})'}');
+        if (t == HealthDataType.WORKOUT) {
+          for (final p in pts) {
+            final v = p.value;
+            final type = v is WorkoutHealthValue ? v.workoutActivityType.name : '?';
+            out.writeln('  • ${fmtDato(p.dateFrom)} kl. ${fmtKl(p.dateFrom)}–${fmtKl(p.dateTo)} '
+                '$type (${p.sourceName})${app.importedWorkoutIds.contains(p.uuid) ? ' – hentet' : ''}');
+          }
+        }
+      } catch (e) {
+        out.writeln('${t.name}: FEIL $e');
+      }
+    }
+    return out.toString();
+  }
+
   /// Hent nye økter siden sist (med to dagers overlapp) og legg dem inn i planen.
   Future<ImportResult> sync(AppState app) async {
     await _configure();
