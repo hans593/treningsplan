@@ -8,6 +8,7 @@ import '../exercises.dart';
 import '../main.dart';
 import '../models.dart';
 import '../widgets.dart';
+import '../workout_service.dart';
 import '../workout_steps.dart';
 import 'session_screen.dart' show logWeights;
 
@@ -29,6 +30,10 @@ class _GuidedScreenState extends State<GuidedScreen> {
   bool _finished = false;
   Coach? _coach;
   int _lastCount = -1; // sist opplest nedtelling (3, 2, 1)
+  List<Milestone> _milestones = const [];
+  int _nextMs = 0; // neste beskjed underveis (25/50/75 %, 5 min igjen)
+  int _total = 0;
+  int _lastNotifMin = -1;
 
   @override
   void didChangeDependencies() {
@@ -42,7 +47,11 @@ class _GuidedScreenState extends State<GuidedScreen> {
         swaps: app.exerciseSwaps,
         extraRest: app.extraRestSec,
       );
-      _coach = Coach(voice: app.voiceOn, music: app.musicMode, genre: app.musicGenre);
+      _milestones = milestonesFor(widget.session, _steps);
+      _total = totalSeconds(_steps);
+      _coach = Coach(
+          voice: app.voiceOn, music: app.musicMode, genre: app.musicGenre, keepScreenOn: !isWalk(widget.session));
+      WorkoutService.start(widget.session.title, 'Økta pågår');
       _coach!.start().then((_) => _announce());
       _startStep();
       _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
@@ -53,14 +62,38 @@ class _GuidedScreenState extends State<GuidedScreen> {
   void dispose() {
     _ticker?.cancel();
     _coach?.dispose();
+    WorkoutService.stop();
     super.dispose();
   }
 
   /// Les opp steget og bytt musikk etter om det er arbeid eller pause.
-  void _announce() {
+  void _announce([String extra = '']) {
     final step = _step;
     _coach?.phase(rest: step.isRest || step.isPrepare);
-    _coach?.say(step.speech);
+    _coach?.say([step.speech, extra].where((t) => t.isNotEmpty).join(' '));
+  }
+
+  int get _progress => progressSeconds(_steps, _i, _left.inMilliseconds <= 0 ? 0 : (_left.inMilliseconds / 1000).ceil());
+
+  /// Beskjeder underveis som er passert. Hoppes det over flere, leses bare den siste.
+  String _dueMilestone() {
+    var text = '';
+    final p = _progress;
+    while (_nextMs < _milestones.length && _milestones[_nextMs].atSec <= p) {
+      text = _milestones[_nextMs].speech;
+      _nextMs++;
+    }
+    return text;
+  }
+
+  /// Tid igjen i varselet (oppdateres hvert minutt).
+  void _updateNotification() {
+    if (_total == 0) return;
+    final left = _total - _progress;
+    final min = (left / 60).ceil();
+    if (min == _lastNotifMin) return;
+    _lastNotifMin = min;
+    WorkoutService.update(_pausedLeft != null ? 'Pause – $min min igjen' : '${_step.title} · $min min igjen av økta');
   }
 
   WorkoutStep get _step => _steps[_i];
@@ -96,17 +129,24 @@ class _GuidedScreenState extends State<GuidedScreen> {
       _startStep(carry: -left);
       left = _left;
     }
+    final secs = (left.inMilliseconds / 1000).ceil();
     if (advanced) {
       _signal();
-      _announce();
-    } else if (_step.countdown) {
-      // «Tre, to, en» de siste sekundene.
-      final secs = (left.inMilliseconds / 1000).ceil();
+      _announce(_dueMilestone());
+    } else if (_step.countdown && secs <= 4) {
+      // «Tre, to, en» de siste sekundene (beskjeder underveis venter til neste steg).
       if (secs <= 3 && secs >= 1 && secs != _lastCount) {
         _lastCount = secs;
         _coach?.say(const {3: 'tre', 2: 'to', 1: 'en'}[secs]!);
       }
+    } else {
+      final m = _dueMilestone();
+      if (m.isNotEmpty) {
+        HapticFeedback.mediumImpact();
+        _coach?.say(m);
+      }
     }
+    _updateNotification();
     setState(() {});
   }
 
@@ -125,7 +165,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
       _startStep();
     });
     _signal();
-    _announce();
+    _announce(_dueMilestone());
   }
 
   void _togglePause() {
@@ -140,6 +180,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
         _coach?.say('Klokka er stoppet.');
         _coach?.pause();
       }
+      _lastNotifMin = -1;
     });
   }
 
@@ -147,6 +188,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
     if (_finished) return;
     _finished = true;
     _ticker?.cancel();
+    WorkoutService.stop();
     _signal();
     final app = AppScope.of(context);
     _coach?.phase(rest: true);
@@ -233,7 +275,7 @@ class _GuidedScreenState extends State<GuidedScreen> {
                 CheckedPopupMenuItem<Object>(
                   value: MusicMode.egen,
                   checked: app.musicMode == MusicMode.egen,
-                  child: const Text('Egen musikk (Spotify o.l.)'),
+                  child: const Text('Egen musikk, radio eller podkast'),
                 ),
                 CheckedPopupMenuItem<Object>(
                   value: MusicMode.av,
@@ -315,6 +357,17 @@ class _GuidedScreenState extends State<GuidedScreen> {
                     subtitle: next.seconds != null ? Text(fmtSek(next.seconds!)) : Text(next.subtitle),
                   ),
                 ),
+              if (_milestones.isNotEmpty && _steps.length > 2) ...[
+                const SizedBox(height: 8),
+                Text('Igjen av økta: ${_fmt(Duration(seconds: _total - _progress))}',
+                    textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ],
+              if (_milestones.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                const Text('Du får beskjed etter en firedel, halvveis, tre firedeler og 5 min før slutt. '
+                    'Du kan låse skjermen og høre på radio eller podkast.',
+                    textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 14)),
+              ],
               const SizedBox(height: 8),
               Text('Total tid: ${_fmt(elapsed)}', textAlign: TextAlign.center, style: const TextStyle(color: muted)),
               const SizedBox(height: 16),

@@ -77,7 +77,7 @@ class ProfileScreen extends StatelessWidget {
                 title: const Text('Lyd, musikk og pauser'),
                 subtitle: Text('${app.voiceOn ? 'Stemme på' : 'Stemme av'} · ${switch (app.musicMode) {
                   MusicMode.appen => app.musicGenre.label,
-                  MusicMode.egen => 'Egen musikk',
+                  MusicMode.egen => 'Egen musikk, radio eller podkast',
                   MusicMode.av => 'Ingen musikk',
                 }}${app.extraRestSec > 0 ? ' · +${app.extraRestSec} s pause' : ''}'),
                 trailing: const Icon(Icons.chevron_right),

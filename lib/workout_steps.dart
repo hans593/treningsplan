@@ -94,7 +94,7 @@ List<WorkoutStep> stepsFor(
         }
       }
       steps.add(const WorkoutStep('Rask gange', 'Jevnt tempo, du kan fortsatt snakke',
-          seconds: 900, speech: 'Bra! Nå rask gange i femten minutter.'));
+          seconds: 900, countdown: true, speech: 'Bra! Nå rask gange i femten minutter.'));
       steps.add(const WorkoutStep('Nedtrapping', 'Rolig gange',
           seconds: 300, speech: 'Nedtrapping. Rolig gange i fem minutter.', countdown: true));
     case SessionType.styrkeA:
@@ -137,15 +137,64 @@ List<WorkoutStep> stepsFor(
       }
     case SessionType.langtur:
       steps.add(WorkoutStep('Langtur', 'Rask gange i variert terreng. Du skal kunne snakke.',
-          seconds: s.minutes * 60, speech: 'Start økt. Langtur i ${_tid(s.minutes * 60)}. God tur!'));
+          seconds: s.minutes * 60, countdown: true, speech: 'Start økt. Langtur i ${_tid(s.minutes * 60)}. God tur!'));
     case SessionType.kondisjon:
       steps.add(WorkoutStep(s.title, 'Veksle mellom jogging og rask gange. Anstrengelse 4–6.',
-          seconds: s.minutes * 60, speech: 'Start økt. ${s.title} i ${_tid(s.minutes * 60)}.'));
+          seconds: s.minutes * 60, countdown: true, speech: 'Start økt. ${s.title} i ${_tid(s.minutes * 60)}.'));
     case SessionType.restitusjon:
       steps.add(WorkoutStep(s.title, 'Rolig tempo, løs opp kroppen',
-          seconds: s.minutes * 60, speech: 'Start økt. ${s.title} i ${_tid(s.minutes * 60)}.'));
+          seconds: s.minutes * 60, countdown: true, speech: 'Start økt. ${s.title} i ${_tid(s.minutes * 60)}.'));
   }
   return steps;
+}
+
+/// Turøkter (alt som ikke er styrke) får beskjed underveis om hvor langt man er kommet.
+bool isWalk(Session s) => s.type != SessionType.styrkeA && s.type != SessionType.styrkeB;
+
+/// En beskjed underveis: [atSec] sekunder ut i økta (gjør-deg-klar ikke medregnet).
+class Milestone {
+  final int atSec;
+  final String speech;
+  const Milestone(this.atSec, this.speech);
+}
+
+/// Planlagt lengde på økta i sekunder, uten «gjør deg klar».
+int totalSeconds(List<WorkoutStep> steps) =>
+    steps.where((st) => !st.isPrepare).fold(0, (a, st) => a + (st.seconds ?? 0));
+
+/// Hvor langt ut i økta man er (sekunder) når steg [i] har [leftSec] igjen.
+int progressSeconds(List<WorkoutStep> steps, int i, int leftSec) {
+  var sum = 0;
+  for (var k = 0; k < i; k++) {
+    if (!steps[k].isPrepare) sum += steps[k].seconds ?? 0;
+  }
+  final cur = steps[i];
+  if (!cur.isPrepare && cur.seconds != null) sum += (cur.seconds! - leftSec).clamp(0, cur.seconds!);
+  return sum;
+}
+
+String _minIgjen(int sec) {
+  final m = (sec / 60).round();
+  return m <= 1 ? 'ett minutt igjen' : '$m minutter igjen';
+}
+
+/// Beskjeder etter 25, 50 og 75 % og 5 minutter før slutt. Tom for styrkeøkter.
+/// Faller 5-minuttersbeskjeden nær en av de andre (innen ett minutt), slås de sammen.
+List<Milestone> milestonesFor(Session s, List<WorkoutStep> steps) {
+  if (!isWalk(s)) return const [];
+  final total = totalSeconds(steps);
+  if (total < 4 * 60) return const [];
+  final ms = <Milestone>[
+    Milestone((total * 0.25).round(), 'En firedel er gjort. ${_minIgjen(total - (total * 0.25).round())}.'),
+    Milestone((total * 0.5).round(), 'Halvveis! ${_minIgjen(total - (total * 0.5).round())}.'),
+    Milestone((total * 0.75).round(), 'Tre firedeler er gjort. ${_minIgjen(total - (total * 0.75).round())}.'),
+  ];
+  final five = total - 300;
+  if (five > 60 && ms.every((m) => (m.atSec - five).abs() >= 60)) {
+    ms.add(Milestone(five, 'Fem minutter igjen. Snart i mål!'));
+  }
+  ms.sort((a, b) => a.atSec.compareTo(b.atSec));
+  return ms;
 }
 
 const finishSpeech = 'Økta er ferdig. Bra jobba!';

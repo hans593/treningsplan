@@ -47,6 +47,9 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
 - **Rette registreringer:** faktisk varighet, anstrengelse og følelse; type for ekstraøkter.
 - **Egen makspuls** (eller «medisin påvirker pulsen») brukes når klokka bedømmer anstrengelse.
 - **Lengre pauser** (+15/30/60 sek) i guidede økter.
+- **Turøkter med nedtelling og stemme:** beskjed etter en firedel, halvveis, tre firedeler og 5 min før slutt,
+  og «tre, to, en» på slutten. Appen holdes i gang med et varsel (forgrunnstjeneste på Android) slik at du kan
+  låse skjermen og høre på radio, podkast eller Spotify – lyden dempes kort når stemmen snakker.
 - **Forklaring** på planskjermen hver gang planen gjøres lettere eller tyngre, og hvorfor.
 - **Mål:** gå ned i vekt, eller holde vekten / bedre form. Planen er maks 104 uker (to år).
 - **Ekstra økter utenom planen:** registreres i dag eller tilbake i tid (gange, jogging, intervaller,
@@ -80,7 +83,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 92 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 96 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 

@@ -118,7 +118,7 @@ class _SoundScreenState extends State<SoundScreen> {
           Text(
             switch (app.musicMode) {
               MusicMode.appen => 'Egne låter: en energisk under arbeid og en rolig i pausene.',
-              MusicMode.egen => 'Start Spotify eller annen musikk før økta. Den dempes kort når stemmen snakker.',
+              MusicMode.egen => 'Start radio, podkast eller Spotify før økta. Lyden dempes kort når stemmen snakker, og appen fortsetter selv om skjermen er av.',
               MusicMode.av => 'Bare stemme og klokke.',
             },
             style: const TextStyle(color: muted, fontSize: 14),

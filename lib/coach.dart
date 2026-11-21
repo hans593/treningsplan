@@ -3,7 +3,7 @@
 // * Stemmen bruker telefonens norske tale (nb-NO).
 // * «Appens musikk» spiller to egne låter: en energisk under arbeid og en rolig i pauser.
 //   Musikken dempes mens stemmen snakker.
-// * «Egen musikk» lar Spotify o.l. spille videre; den dempes kort mens stemmen snakker.
+// * «Egen musikk» lar Spotify, radio eller podkast spille videre; den dempes kort mens stemmen snakker.
 
 import 'dart:io';
 
@@ -16,7 +16,10 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'models.dart';
 
 class Coach {
-  Coach({required this.voice, required this.music, this.genre = MusicGenre.pop});
+  Coach({required this.voice, required this.music, this.genre = MusicGenre.pop, this.keepScreenOn = true});
+
+  /// Styrke: skjermen holdes på. Tur: skjermen kan slukkes, tjenesten holder klokka i gang.
+  final bool keepScreenOn;
 
   bool voice;
   MusicMode music;
@@ -30,9 +33,11 @@ class Coach {
   double _musicVolume = 0.8;
 
   Future<void> start() async {
-    try {
-      await WakelockPlus.enable();
-    } catch (_) {}
+    if (keepScreenOn) {
+      try {
+        await WakelockPlus.enable();
+      } catch (_) {}
+    }
     await _initTts();
     if (music == MusicMode.appen) await _startMusic();
   }
@@ -116,8 +121,9 @@ class Coach {
       await _tts.stop();
       await _applyVolumes(duck: 0.3);
       if (Platform.isAndroid) {
-        // Med egen musikk ber vi om kort lydfokus, så Spotify o.l. dempes.
-        await _tts.speak(text, focus: music == MusicMode.egen);
+        // Uten appens musikk ber vi om kort lydfokus, så radio, podkast eller Spotify dempes
+        // mens stemmen snakker og fortsetter etterpå.
+        await _tts.speak(text, focus: music != MusicMode.appen);
       } else {
         await _tts.speak(text);
       }
