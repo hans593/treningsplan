@@ -204,64 +204,199 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
     // Det klokka registrerte, lagres alltid (også økter som ikke påvirker planen).
     final data = watchDataFor(w, hrMax);
     final old = app.watchLog.where((x) => x.id == w.id).firstOrNull;
-    if (old != null) data.outcome = old.outcome;
+    if (old != null) {
+      data.outcome = old.outcome;
+      data.mergedInto = old.mergedInto;
+    }
     app.putWatchData(data);
+    if (data.mergedInto != null) continue; // del av en sammenslått økt
     final day = dateOnly(w.start);
     if (app.importedWorkoutIds.contains(w.id)) {
       _linkExisting(app, data, day);
       continue;
     }
-    // For korte, utenfor planen eller i fremtiden: hopp over (men husk den).
-    if (w.minutes < 10 || day.isBefore(first) || day.isAfter(app.today) || app.weekFor(day) == null) {
-      data.outcome = w.minutes < 10
-          ? 'Kortere enn 10 min – ikke regnet med'
-          : day.isBefore(first)
-              ? 'Før planen startet – ikke regnet med'
-              : 'Utenfor planen';
-      app.importedWorkoutIds.add(w.id);
-      continue;
-    }
-    final type = typeFor(w.activity);
-    final effort = effortFor(w, p.age, maxHr: p.maxHr, ignoreHr: p.hrUnreliable);
-    // Allerede krysset av for hånd samme dag: koble klokkedataene til den, ikke registrer på nytt.
-    final manual = _doneWithoutWatch(app, day, type, w.minutes);
-    if (manual != null) {
-      manual.watchId = w.id;
-      data.outcome = 'Koblet til «${manual.title}» (krysset av for hånd)';
-      result.lines.add('${fmtUkedag(day)}: klokkedata koblet til «${manual.title}»');
-      app.importedWorkoutIds.add(w.id);
-      continue;
-    }
-    final planned = _matchPlanned(app, w, type, effort);
-    if (planned != null) {
-      if (planned.status == SessionStatus.planlagt) {
-        app.markDone(planned);
-      } else {
-        app.backRegister(planned);
-      }
-      planned.note = 'Fra klokka: ${_detail(w)}';
-      planned.watchId = w.id;
-      data.outcome = 'Krysset av «${planned.title}»';
-      result.markedDone++;
-      result.lines.add('${fmtUkedag(day)}: «${planned.title}» krysset av (${_detail(w)})');
-    } else {
-      final covered = app.addExtra(
-        date: day,
-        type: type,
-        title: titleFor(w.activity),
-        minutes: max(10, w.minutes),
-        effort: effort,
-      );
-      final extra = app.weekFor(day)!.sessions.lastWhere((s) => s.extra && s.date == day);
-      extra.note = extra.covers != null ? '${extra.note} · fra klokka' : 'Fra klokka: ${_detail(w)}';
-      extra.watchId = w.id;
-      data.outcome = 'Registrert som ekstra økt${covered.isNotEmpty ? ' – tar igjen «${covered.first.title}»' : ''}';
-      result.extras++;
-      result.covered += covered.length;
-      result.lines.add('${fmtUkedag(day)}: ${titleFor(w.activity)} registrert som ekstra (${_detail(w)})'
-          '${covered.isNotEmpty ? ' – tar igjen «${covered.first.title}»' : ''}');
-    }
+    _register(app, w, data, result, first);
+  }
+  return result;
+}
+
+/// Legger én klokkeøkt inn i planen: kobler til, krysser av eller registrerer som ekstra.
+void _register(AppState app, ImportedWorkout w, WatchData data, ImportResult result, DateTime first) {
+  final p = app.profile!;
+  final day = dateOnly(w.start);
+  // For korte, utenfor planen eller i fremtiden: hopp over (men husk den).
+  if (w.minutes < 10 || day.isBefore(first) || day.isAfter(app.today) || app.weekFor(day) == null) {
+    data.outcome = w.minutes < 10
+        ? 'Kortere enn 10 min – ikke regnet med (kan slås sammen med andre)'
+        : day.isBefore(first)
+            ? 'Før planen startet – ikke regnet med'
+            : 'Utenfor planen';
     app.importedWorkoutIds.add(w.id);
+    return;
+  }
+  final type = typeFor(w.activity);
+  final effort = effortFor(w, p.age, maxHr: p.maxHr, ignoreHr: p.hrUnreliable);
+  // Allerede krysset av for hånd samme dag: koble klokkedataene til den, ikke registrer på nytt.
+  final manual = _doneWithoutWatch(app, day, type, w.minutes);
+  if (manual != null) {
+    manual.watchId = w.id;
+    data.outcome = 'Koblet til «${manual.title}» (krysset av for hånd)';
+    result.lines.add('${fmtUkedag(day)}: klokkedata koblet til «${manual.title}»');
+    app.importedWorkoutIds.add(w.id);
+    return;
+  }
+  final planned = _matchPlanned(app, w, type, effort);
+  if (planned != null) {
+    if (planned.status == SessionStatus.planlagt) {
+      app.markDone(planned);
+    } else {
+      app.backRegister(planned);
+    }
+    planned.note = 'Fra klokka: ${_detail(w)}';
+    planned.watchId = w.id;
+    data.outcome = 'Krysset av «${planned.title}»';
+    result.markedDone++;
+    result.lines.add('${fmtUkedag(day)}: «${planned.title}» krysset av (${_detail(w)})');
+  } else {
+    final covered = app.addExtra(
+      date: day,
+      type: type,
+      title: titleFor(w.activity),
+      minutes: max(10, w.minutes),
+      effort: effort,
+    );
+    final extra = app.weekFor(day)!.sessions.lastWhere((s) => s.extra && s.date == day);
+    extra.note = extra.covers != null ? '${extra.note} · fra klokka' : 'Fra klokka: ${_detail(w)}';
+    extra.watchId = w.id;
+    data.outcome = 'Registrert som ekstra økt${covered.isNotEmpty ? ' – tar igjen «${covered.first.title}»' : ''}';
+    result.extras++;
+    result.covered += covered.length;
+    result.lines.add('${fmtUkedag(day)}: ${titleFor(w.activity)} registrert som ekstra (${_detail(w)})'
+        '${covered.isNotEmpty ? ' – tar igjen «${covered.first.title}»' : ''}');
+  }
+  app.importedWorkoutIds.add(w.id);
+}
+
+DateTime _firstPlanDay(AppState app) {
+  final p = app.profile!;
+  return app.weeks.first.monday.isBefore(p.startDate) ? p.startDate : app.weeks.first.monday;
+}
+
+WatchActivity _activityOf(String label) =>
+    WatchActivity.values.firstWhere((a) => titleFor(a) == label, orElse: () => WatchActivity.annet);
+
+/// Lager en «klokkeøkt» av lagrede data, så den kan legges inn i planen på nytt.
+/// Varigheten er aktiv tid (viktig for sammenslåtte økter).
+ImportedWorkout _asWorkout(WatchData d) => ImportedWorkout(
+      id: d.id,
+      start: d.start,
+      end: d.start.add(Duration(seconds: d.durationSec)),
+      activity: _activityOf(d.activity),
+      avgHr: d.avgHr?.toDouble(),
+      maxHr: d.maxHr?.toDouble(),
+      kcal: d.kcal,
+      distanceM: d.distanceM,
+      steps: d.steps,
+      source: d.source,
+    );
+
+/// Fjerner det en klokkeøkt gjorde i planen. Økter krysset av for hånd beholdes.
+void _unlink(AppState app, WatchData d) {
+  for (final s in app.weeks.expand((w) => w.sessions).where((s) => s.watchId == d.id).toList()) {
+    if (s.extra) {
+      app.deleteExtra(s);
+    } else if (d.outcome.startsWith('Koblet til')) {
+      s.watchId = null;
+    } else {
+      app.markNotDone(s);
+      s.watchId = null;
+    }
+  }
+  d.outcome = '';
+}
+
+/// Kan disse slås sammen? Returnerer feilmelding, eller null hvis det går.
+String? canMergeWatch(List<WatchData> items) {
+  if (items.length < 2) return 'Velg minst to økter.';
+  if (items.any((d) => d.isMerged || d.mergedInto != null)) return 'En av øktene er allerede slått sammen.';
+  final day = dateOnly(items.first.start);
+  if (items.any((d) => dateOnly(d.start) != day)) return 'Bare økter fra samme dag kan slås sammen.';
+  return null;
+}
+
+/// Slår sammen korte klokkeøkter fra samme dag til én.
+/// Tid, distanse, skritt, kalorier og pulssoner summeres; snittpuls vektes etter tid.
+/// Det delene gjorde i planen fjernes, og den samlede økta legges inn på nytt.
+ImportResult mergeWatchWorkouts(AppState app, List<String> ids) {
+  final result = ImportResult();
+  final items = [for (final id in ids) app.watchDataById(id)].whereType<WatchData>().toList()
+    ..sort((a, b) => a.start.compareTo(b.start));
+  final err = canMergeWatch(items);
+  if (err != null) {
+    result.lines.add(err);
+    return result;
+  }
+  for (final d in items) {
+    _unlink(app, d);
+  }
+  final active = items.fold<int>(0, (a, d) => a + d.durationSec);
+  final withHr = items.where((d) => d.avgHr != null).toList();
+  final hrSec = withHr.fold<int>(0, (a, d) => a + d.durationSec);
+  int? sum(int? Function(WatchData) f) {
+    final v = items.map(f).whereType<int>().toList();
+    return v.isEmpty ? null : v.fold<int>(0, (a, b) => a + b);
+  }
+
+  // Aktiviteten med mest tid gir typen.
+  final byAct = <String, int>{};
+  for (final d in items) {
+    byAct[d.activity] = (byAct[d.activity] ?? 0) + d.durationSec;
+  }
+  final activity = (byAct.entries.toList()..sort((a, b) => b.value - a.value)).first.key;
+  final merged = WatchData(
+    id: 'sammen:${items.first.id}:${items.length}',
+    start: items.first.start,
+    end: items.map((d) => d.end).reduce((a, b) => a.isAfter(b) ? a : b),
+    activity: activity,
+    source: items.first.source,
+    avgHr: hrSec == 0 ? null : (withHr.fold<int>(0, (a, d) => a + d.avgHr! * d.durationSec) / hrSec).round(),
+    maxHr: items.map((d) => d.maxHr).whereType<int>().fold<int?>(null, (a, b) => a == null || b > a ? b : a),
+    minHr: items.map((d) => d.minHr).whereType<int>().fold<int?>(null, (a, b) => a == null || b < a ? b : a),
+    kcal: sum((d) => d.kcal),
+    distanceM: sum((d) => d.distanceM),
+    steps: sum((d) => d.steps),
+    zoneSec: [for (var z = 0; z < 5; z++) items.fold<int>(0, (a, d) => a + (z < d.zoneSec.length ? d.zoneSec[z] : 0))],
+    hrCurve: [
+      for (var i = 0; i < items.length; i++) ...[if (i > 0) 0, ...items[i].hrCurve]
+    ],
+    hrMaxUsed: items.first.hrMaxUsed,
+    parts: [for (final d in items) d.id],
+    activeSec: active,
+  );
+  for (final d in items) {
+    d.mergedInto = merged.id;
+    d.outcome = 'Slått sammen med ${items.length - 1} andre';
+  }
+  app.putWatchData(merged);
+  _register(app, _asWorkout(merged), merged, result, _firstPlanDay(app));
+  return result;
+}
+
+/// Deler en sammenslått økt opp igjen; hver del legges inn i planen for seg.
+ImportResult splitWatchWorkout(AppState app, String mergedId) {
+  final result = ImportResult();
+  final m = app.watchDataById(mergedId);
+  if (m == null || !m.isMerged) return result;
+  _unlink(app, m);
+  app.watchLog.removeWhere((d) => d.id == m.id);
+  app.importedWorkoutIds.remove(m.id);
+  final first = _firstPlanDay(app);
+  for (final id in m.parts) {
+    final d = app.watchDataById(id);
+    if (d == null) continue;
+    d.mergedInto = null;
+    d.outcome = '';
+    _register(app, _asWorkout(d), d, result, first);
   }
   return result;
 }
@@ -292,7 +427,7 @@ void _linkExisting(AppState app, WatchData data, DateTime day) {
       .where((s) => s.date == day && s.watchId == null && (s.note ?? '').toLowerCase().contains('fra klokka'))
       .toList()
     ..sort((a, b) => (a.minutes - data.minutes).abs() - (b.minutes - data.minutes).abs());
-  final type = all.where((s) => s.date == day).isEmpty ? null : _typeOfActivity(data.activity);
+  final type = all.where((s) => s.date == day).isEmpty ? null : typeFor(_activityOf(data.activity));
   final s = candidates.firstOrNull ?? (type == null ? null : _doneWithoutWatch(app, day, type, data.minutes));
   if (s == null) return;
   s.watchId = data.id;
@@ -305,12 +440,6 @@ void _linkExisting(AppState app, WatchData data, DateTime day) {
   }
 }
 
-SessionType? _typeOfActivity(String label) {
-  for (final a in WatchActivity.values) {
-    if (titleFor(a) == label) return typeFor(a);
-  }
-  return null;
-}
 
 /// Vekt fra smartvekt via Samsung Health. Én måling per dag (den siste).
 int applyWeights(AppState app, List<(DateTime, double)> weights) {

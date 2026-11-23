@@ -56,7 +56,7 @@ class WatchDetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final d = data;
     final cs = Theme.of(context).colorScheme;
-    final durSec = d.end.difference(d.start).inSeconds;
+    final durSec = d.durationSec;
     final tiles = <(String, String)>[
       ('Varighet', fmtVarighet(durSec)),
       if (d.distanceM != null && d.distanceM! > 0) ('Distanse', _kgKm(d.distanceM!)),
@@ -83,6 +83,7 @@ class WatchDetailsCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${d.activity} · ${fmtUkedag(d.start)} kl. ${fmtKl(d.start)}–${fmtKl(d.end)}'
+            '${d.isMerged ? '\nSlått sammen av ${d.parts.length} økter (varighet = tiden i bevegelse)' : ''}'
             '${d.source.isNotEmpty ? '\nKilde: ${_sourceName(d.source)}' : ''}',
             style: const TextStyle(color: muted, fontSize: 14, height: 1.4),
           ),
@@ -316,22 +317,33 @@ class HrCurvePainter extends CustomPainter {
   bool shouldRepaint(covariant HrCurvePainter old) => old.curve != curve;
 }
 
-/// Liste over økter fra klokka.
+/// Liste over økter fra klokka, med kryss for å velge økter som skal slås sammen.
 class WatchLogTile extends StatelessWidget {
   final WatchData d;
   final VoidCallback onTap;
-  const WatchLogTile(this.d, {super.key, required this.onTap});
+  final bool selected;
+
+  /// null = kan ikke velges (annen dag eller allerede sammenslått).
+  final ValueChanged<bool>? onSelect;
+  const WatchLogTile(this.d, {super.key, required this.onTap, this.selected = false, this.onSelect});
 
   @override
   Widget build(BuildContext context) => Card(
         child: ListTile(
           onTap: onTap,
-          leading: const Icon(Icons.watch),
-          title: Text('${d.activity} · ${fmtVarighet(d.end.difference(d.start).inSeconds)}'),
+          contentPadding: const EdgeInsets.only(left: 4, right: 12),
+          leading: d.isMerged
+              ? const SizedBox(width: 48, child: Icon(Icons.merge_type))
+              : Checkbox(
+                  value: selected,
+                  onChanged: onSelect == null ? null : (v) => onSelect!(v ?? false),
+                ),
+          title: Text('${d.activity} · ${fmtVarighet(d.durationSec)}'),
           subtitle: Text([
-            '${fmtUkedag(d.start)} kl. ${fmtKl(d.start)}',
+            'kl. ${fmtKl(d.start)}${d.isMerged ? '–${fmtKl(d.end)} · ${d.parts.length} deler' : ''}',
             if (d.distanceM != null && d.distanceM! > 0) _kgKm(d.distanceM!),
             if (d.avgHr != null) 'snittpuls ${d.avgHr}',
+            if (d.minutes < 10 && !d.isMerged) 'kort',
           ].join(' · ')),
           trailing: const Icon(Icons.chevron_right),
         ),

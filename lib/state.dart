@@ -185,6 +185,21 @@ class AppState extends ChangeNotifier {
     return r;
   }
 
+  /// Slå sammen klokkeøkter (se watch_import.dart).
+  ImportResult mergeWatch(List<String> ids) {
+    final r = mergeWatchWorkouts(this, ids);
+    refreshMissed();
+    _changed();
+    return r;
+  }
+
+  ImportResult splitWatch(String id) {
+    final r = splitWatchWorkout(this, id);
+    refreshMissed();
+    _changed();
+    return r;
+  }
+
   void _changed() {
     modifiedAt = DateTime.now();
     notifyListeners();

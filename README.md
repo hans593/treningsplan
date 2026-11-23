@@ -51,6 +51,9 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
 - **Det klokka registrerte:** under økta (og i lista under Samsung-klokke) vises tid, varighet, distanse, tempo,
   skritt, snitt-/høyeste/laveste puls, kalorier, tid i pulssoner og pulskurve – og en sammenligning med planen
   (tid og pulsmål for økttypen). Klokkeøkter de siste 30 dagene hentes, også før planen starter.
+- **Slå sammen klokkeøkter:** kryss av flere korte økter samme dag under Samsung-klokke og trykk «Slå sammen».
+  Tid i bevegelse, distanse, skritt, kalorier og pulssoner summeres, snittpuls vektes etter tid. Det delene
+  registrerte hver for seg fjernes, og den samlede økta krysser av planen eller blir én ekstra. Kan deles opp igjen.
 - **Turøkter med nedtelling og stemme:** beskjed etter en firedel, halvveis, tre firedeler og 5 min før slutt,
   og «tre, to, en» på slutten. Appen holdes i gang med et varsel (forgrunnstjeneste på Android) slik at du kan
   låse skjermen og høre på radio, podkast eller Spotify – lyden dempes kort når stemmen snakker.
@@ -87,7 +90,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 101 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 104 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 

@@ -539,6 +539,15 @@ class WatchData {
   /// Hva appen gjorde med økta (krysset av, ekstra, før planen …).
   String outcome;
 
+  /// Sammenslått økt: id-ene til delene. Tom for vanlige økter.
+  final List<String> parts;
+
+  /// Del av en sammenslått økt: id-en til den sammenslåtte.
+  String? mergedInto;
+
+  /// Aktiv tid i sekunder for sammenslåtte økter (summen av delene, ikke pausene mellom).
+  final int? activeSec;
+
   WatchData({
     required this.id,
     required this.start,
@@ -555,14 +564,22 @@ class WatchData {
     this.hrCurve = const [],
     this.hrMaxUsed = 160,
     this.outcome = '',
+    this.parts = const [],
+    this.mergedInto,
+    this.activeSec,
   });
 
-  int get minutes => end.difference(start).inMinutes;
+  bool get isMerged => parts.isNotEmpty;
+
+  /// Varighet i sekunder: aktiv tid for sammenslåtte, ellers start til slutt.
+  int get durationSec => activeSec ?? end.difference(start).inSeconds;
+
+  int get minutes => durationSec ~/ 60;
   bool get hasHr => avgHr != null;
 
   /// Tempo i sekunder per km.
   int? get paceSecPerKm =>
-      distanceM == null || distanceM! < 200 ? null : (end.difference(start).inSeconds * 1000 / distanceM!).round();
+      distanceM == null || distanceM! < 200 ? null : (durationSec * 1000 / distanceM!).round();
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -580,6 +597,9 @@ class WatchData {
         'hrCurve': hrCurve,
         'hrMaxUsed': hrMaxUsed,
         'outcome': outcome,
+        if (parts.isNotEmpty) 'parts': parts,
+        if (mergedInto != null) 'mergedInto': mergedInto,
+        if (activeSec != null) 'activeSec': activeSec,
       };
 
   factory WatchData.fromJson(Map<String, dynamic> j) => WatchData(
@@ -598,6 +618,9 @@ class WatchData {
         hrCurve: ((j['hrCurve'] as List?) ?? const []).cast<int>(),
         hrMaxUsed: j['hrMaxUsed'] ?? 160,
         outcome: j['outcome'] ?? '',
+        parts: ((j['parts'] as List?) ?? const []).cast<String>(),
+        mergedInto: j['mergedInto'],
+        activeSec: j['activeSec'],
       );
 }
 
