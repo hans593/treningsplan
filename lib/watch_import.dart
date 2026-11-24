@@ -60,6 +60,30 @@ class ImportResult {
   }
 }
 
+/// En måling over et tidsrom (skritt, distanse, kalorier) med kilde.
+typedef Delta = (DateTime from, DateTime to, double value, String source);
+
+/// Summen av målinger i tidsrommet [a]–[b] fra ÉN kilde.
+/// Telefonen og Samsung Health registrerer ofte det samme (f.eks. distanse); summeres alle kilder,
+/// telles det dobbelt. Vi bruker [prefer] (kilden til økta) når den har data, ellers kilden med mest.
+/// Målinger som går over start eller slutt, tas med forholdsmessig.
+int? sumOneSource(List<Delta> pts, DateTime a, DateTime b, {String prefer = ''}) {
+  final bySource = <String, double>{};
+  for (final (f, t, v, src) in pts) {
+    final s0 = f.isAfter(a) ? f : a;
+    final e0 = t.isBefore(b) ? t : b;
+    if (!e0.isAfter(s0) && !(f == t && !f.isBefore(a) && !f.isAfter(b))) continue;
+    final len = t.difference(f).inMilliseconds;
+    final part = len <= 0 ? v : v * e0.difference(s0).inMilliseconds / len;
+    bySource[src] = (bySource[src] ?? 0) + part;
+  }
+  if (bySource.isEmpty) return null;
+  final chosen = bySource.containsKey(prefer) && bySource[prefer]! > 0
+      ? bySource[prefer]!
+      : bySource.values.reduce(max);
+  return chosen <= 0 ? null : chosen.round();
+}
+
 /// Gjør pulsmålingene om til det som vises: snitt, maks, tid i soner og en kurve per minutt.
 /// Hver måling gjelder fram til neste (maks 2 min, så hull i målingene ikke teller).
 WatchData watchDataFor(ImportedWorkout w, double hrMax) {
@@ -217,6 +241,7 @@ ImportResult applyWorkouts(AppState app, List<ImportedWorkout> workouts) {
     }
     _register(app, w, data, result, first);
   }
+  refreshMerged(app);
   return result;
 }
 
@@ -339,40 +364,7 @@ ImportResult mergeWatchWorkouts(AppState app, List<String> ids) {
   for (final d in items) {
     _unlink(app, d);
   }
-  final active = items.fold<int>(0, (a, d) => a + d.durationSec);
-  final withHr = items.where((d) => d.avgHr != null).toList();
-  final hrSec = withHr.fold<int>(0, (a, d) => a + d.durationSec);
-  int? sum(int? Function(WatchData) f) {
-    final v = items.map(f).whereType<int>().toList();
-    return v.isEmpty ? null : v.fold<int>(0, (a, b) => a + b);
-  }
-
-  // Aktiviteten med mest tid gir typen.
-  final byAct = <String, int>{};
-  for (final d in items) {
-    byAct[d.activity] = (byAct[d.activity] ?? 0) + d.durationSec;
-  }
-  final activity = (byAct.entries.toList()..sort((a, b) => b.value - a.value)).first.key;
-  final merged = WatchData(
-    id: 'sammen:${items.first.id}:${items.length}',
-    start: items.first.start,
-    end: items.map((d) => d.end).reduce((a, b) => a.isAfter(b) ? a : b),
-    activity: activity,
-    source: items.first.source,
-    avgHr: hrSec == 0 ? null : (withHr.fold<int>(0, (a, d) => a + d.avgHr! * d.durationSec) / hrSec).round(),
-    maxHr: items.map((d) => d.maxHr).whereType<int>().fold<int?>(null, (a, b) => a == null || b > a ? b : a),
-    minHr: items.map((d) => d.minHr).whereType<int>().fold<int?>(null, (a, b) => a == null || b < a ? b : a),
-    kcal: sum((d) => d.kcal),
-    distanceM: sum((d) => d.distanceM),
-    steps: sum((d) => d.steps),
-    zoneSec: [for (var z = 0; z < 5; z++) items.fold<int>(0, (a, d) => a + (z < d.zoneSec.length ? d.zoneSec[z] : 0))],
-    hrCurve: [
-      for (var i = 0; i < items.length; i++) ...[if (i > 0) 0, ...items[i].hrCurve]
-    ],
-    hrMaxUsed: items.first.hrMaxUsed,
-    parts: [for (final d in items) d.id],
-    activeSec: active,
-  );
+  final merged = combineWatch(items, 'sammen:${items.first.id}:${items.length}');
   for (final d in items) {
     d.mergedInto = merged.id;
     d.outcome = 'Slått sammen med ${items.length - 1} andre';
@@ -380,6 +372,83 @@ ImportResult mergeWatchWorkouts(AppState app, List<String> ids) {
   app.putWatchData(merged);
   _register(app, _asWorkout(merged), merged, result, _firstPlanDay(app));
   return result;
+}
+
+/// Regner ut den samlede økta av delene.
+/// Overlapper delene i tid (f.eks. en tur som både ble oppdaget automatisk og startet på klokka),
+/// telles bare tiden som ikke alt er dekket, og distanse, skritt, kalorier og pulssoner skaleres likt.
+WatchData combineWatch(List<WatchData> parts, String id, {String outcome = ''}) {
+  final items = [...parts]..sort((a, b) => a.start.compareTo(b.start));
+  final frac = <double>[];
+  DateTime? coveredEnd;
+  for (final d in items) {
+    final full = d.end.difference(d.start).inSeconds;
+    final from = coveredEnd != null && coveredEnd.isAfter(d.start) ? coveredEnd : d.start;
+    final unique = d.end.isAfter(from) ? d.end.difference(from).inSeconds : 0;
+    frac.add(full <= 0 ? 0 : unique / full);
+    if (coveredEnd == null || d.end.isAfter(coveredEnd)) coveredEnd = d.end;
+  }
+  double sec(int i) => items[i].durationSec * frac[i];
+  final active = [for (var i = 0; i < items.length; i++) sec(i)].fold<double>(0, (a, b) => a + b).round();
+  int? sum(int? Function(WatchData) f) {
+    var any = false;
+    var t = 0.0;
+    for (var i = 0; i < items.length; i++) {
+      final v = f(items[i]);
+      if (v == null) continue;
+      any = true;
+      t += v * frac[i];
+    }
+    return any ? t.round() : null;
+  }
+
+  var hrSec = 0.0, hrSum = 0.0;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].avgHr == null) continue;
+    hrSec += sec(i);
+    hrSum += items[i].avgHr! * sec(i);
+  }
+  final byAct = <String, double>{};
+  for (var i = 0; i < items.length; i++) {
+    byAct[items[i].activity] = (byAct[items[i].activity] ?? 0) + sec(i);
+  }
+  final activity = (byAct.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key;
+  final used = [for (var i = 0; i < items.length; i++) if (frac[i] > 0) items[i]];
+  return WatchData(
+    id: id,
+    start: items.first.start,
+    end: items.map((d) => d.end).reduce((a, b) => a.isAfter(b) ? a : b),
+    activity: activity,
+    source: items.first.source,
+    avgHr: hrSec == 0 ? null : (hrSum / hrSec).round(),
+    maxHr: used.map((d) => d.maxHr).whereType<int>().fold<int?>(null, (a, b) => a == null || b > a ? b : a),
+    minHr: used.map((d) => d.minHr).whereType<int>().fold<int?>(null, (a, b) => a == null || b < a ? b : a),
+    kcal: sum((d) => d.kcal),
+    distanceM: sum((d) => d.distanceM),
+    steps: sum((d) => d.steps),
+    zoneSec: [
+      for (var z = 0; z < 5; z++)
+        [for (var i = 0; i < items.length; i++) (z < items[i].zoneSec.length ? items[i].zoneSec[z] : 0) * frac[i]]
+            .fold<double>(0, (a, b) => a + b)
+            .round()
+    ],
+    hrCurve: [
+      for (var i = 0; i < used.length; i++) ...[if (i > 0) 0, ...used[i].hrCurve]
+    ],
+    hrMaxUsed: items.first.hrMaxUsed,
+    parts: [for (final d in items) d.id],
+    activeSec: active,
+    outcome: outcome,
+  );
+}
+
+/// Etter ny henting: regn ut sammenslåtte økter på nytt fra de oppdaterte delene.
+void refreshMerged(AppState app) {
+  for (final m in app.watchLog.where((d) => d.isMerged).toList()) {
+    final parts = [for (final id in m.parts) app.watchDataById(id)].whereType<WatchData>().toList();
+    if (parts.length != m.parts.length) continue;
+    app.putWatchData(combineWatch(parts, m.id, outcome: m.outcome));
+  }
 }
 
 /// Deler en sammenslått økt opp igjen; hver del legges inn i planen for seg.

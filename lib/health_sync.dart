@@ -173,12 +173,17 @@ class HealthSync {
     try {
       dist = await _health.getHealthDataFromTypes(types: [HealthDataType.DISTANCE_DELTA], startTime: from, endTime: now);
     } catch (_) {}
-    // Sum av målinger som ligger innenfor økta.
-    int? sumIn(List<HealthDataPoint> pts, DateTime a, DateTime b) {
-      final inside = pts.where((x) => !x.dateFrom.isBefore(a) && !x.dateTo.isAfter(b) && x.value is NumericHealthValue);
-      if (inside.isEmpty) return null;
-      return inside.fold<double>(0, (t, x) => t + (x.value as NumericHealthValue).numericValue.toDouble()).round();
-    }
+    List<HealthDataPoint> cal = [];
+    try {
+      cal = await _health.getHealthDataFromTypes(
+          types: [HealthDataType.TOTAL_CALORIES_BURNED], startTime: from, endTime: now);
+    } catch (_) {}
+    List<Delta> deltas(List<HealthDataPoint> pts) => [
+          for (final x in pts)
+            if (x.value is NumericHealthValue)
+              (x.dateFrom, x.dateTo, (x.value as NumericHealthValue).numericValue.toDouble(), x.sourceName)
+        ];
+    final stepD = deltas(steps), distD = deltas(dist), calD = deltas(cal);
     List<HealthDataPoint> weightRaw = [];
     try {
       weightRaw = await _health.getHealthDataFromTypes(
@@ -192,10 +197,15 @@ class HealthSync {
     for (final d in workoutsRaw) {
       final v = d.value;
       if (v is! WorkoutHealthValue) continue;
-      final samples = [
+      final hrIn = [
         for (final h in hr)
-          if (!h.dateFrom.isBefore(d.dateFrom) && !h.dateFrom.isAfter(d.dateTo) && h.value is NumericHealthValue)
-            (h.dateFrom, (h.value as NumericHealthValue).numericValue.toDouble())
+          if (!h.dateFrom.isBefore(d.dateFrom) && !h.dateFrom.isAfter(d.dateTo) && h.value is NumericHealthValue) h
+      ];
+      // Puls fra samme kilde som økta hvis den finnes (unngår dobbel puls fra flere apper).
+      final sameSrc = hrIn.where((h) => h.sourceName == d.sourceName).toList();
+      final samples = [
+        for (final h in sameSrc.isNotEmpty ? sameSrc : hrIn)
+          (h.dateFrom, (h.value as NumericHealthValue).numericValue.toDouble())
       ];
       final pulses = samples.map((x) => x.$2).where((x) => x > 30 && x < 230).toList();
       workouts.add(ImportedWorkout(
@@ -205,9 +215,11 @@ class HealthSync {
         activity: mapActivity(v.workoutActivityType),
         avgHr: pulses.isEmpty ? null : pulses.reduce((a, b) => a + b) / pulses.length,
         maxHr: pulses.isEmpty ? null : pulses.reduce((a, b) => a > b ? a : b),
-        kcal: v.totalEnergyBurned,
-        distanceM: (v.totalDistance ?? 0) > 0 ? v.totalDistance : sumIn(dist, d.dateFrom, d.dateTo),
-        steps: v.totalSteps ?? sumIn(steps, d.dateFrom, d.dateTo),
+        // Pakkens egne totaler summerer alle kilder (telefon + Samsung = dobbelt), så vi regner selv
+        // og bruker dem bare når vi ikke finner noe.
+        kcal: sumOneSource(calD, d.dateFrom, d.dateTo, prefer: d.sourceName) ?? v.totalEnergyBurned,
+        distanceM: sumOneSource(distD, d.dateFrom, d.dateTo, prefer: d.sourceName) ?? v.totalDistance,
+        steps: sumOneSource(stepD, d.dateFrom, d.dateTo, prefer: d.sourceName) ?? v.totalSteps,
         source: d.sourceName,
         hrSamples: samples,
       ));

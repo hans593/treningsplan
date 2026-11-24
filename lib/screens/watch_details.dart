@@ -181,7 +181,7 @@ class _Compare extends StatelessWidget {
     if (hrEffort != null) {
       final pct = (data.avgHr! / data.hrMaxUsed * 100).round();
       final target = pulseTarget(planned.type);
-      if (planned.type == SessionType.motbakke) {
+      if (planned.type == SessionType.motbakke && !data.isMerged) {
         final top = data.maxHr == null ? 0 : (data.maxHr! / data.hrMaxUsed * 100).round();
         effTxt = 'Snittpuls $pct % av makspuls. Høyeste puls $top %'
             '${top >= 85 ? ' – dragene var harde nok (mål: over 85 %).' : ' – dragene kan tas litt hardere (mål: over 85 %).'}';
