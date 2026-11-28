@@ -23,6 +23,12 @@ class ImportedWorkout {
   /// Pulsmålinger under økta (tid, slag per minutt).
   final List<(DateTime, double)> hrSamples;
 
+  /// GPS-punkter (tid, breddegrad, lengdegrad, høyde).
+  final List<(DateTime, double, double, double?)> route;
+
+  /// Health Connect har en rute, men appen har ikke lov til å lese den.
+  final bool routeNeedsConsent;
+
   const ImportedWorkout({
     required this.id,
     required this.start,
@@ -35,6 +41,8 @@ class ImportedWorkout {
     this.steps,
     this.source = '',
     this.hrSamples = const [],
+    this.route = const [],
+    this.routeNeedsConsent = false,
   });
 
   int get minutes => end.difference(start).inMinutes;
@@ -58,6 +66,68 @@ class ImportResult {
     ];
     return parts.isEmpty ? 'Ingen nye økter fra klokka' : 'Fra klokka: ${parts.join(', ')}';
   }
+}
+
+/// Avstand i meter mellom to punkter (haversine).
+double metersBetween(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371000.0;
+  final p1 = lat1 * pi / 180, p2 = lat2 * pi / 180;
+  final dp = (lat2 - lat1) * pi / 180, dl = (lng2 - lng1) * pi / 180;
+  final a = sin(dp / 2) * sin(dp / 2) + cos(p1) * cos(p2) * sin(dl / 2) * sin(dl / 2);
+  return 2 * r * atan2(sqrt(a), sqrt(1 - a));
+}
+
+/// Gjør GPS-punktene om til en lagringsvennlig rute: maks [maxPoints] punkter
+/// [bredde, lengde, pulssone], stigning (3 m terskel mot GPS-støy) og distanse.
+({List<List<num>> points, int? ascentM, int? distanceM}) buildRoute(
+    List<(DateTime, double, double, double?)> raw, List<(DateTime, double)> hrSorted, double hrMax,
+    {int maxPoints = 250}) {
+  final pts = [...raw]..sort((a, b) => a.$1.compareTo(b.$1));
+  if (pts.length < 2) return (points: const [], ascentM: null, distanceM: null);
+  var dist = 0.0;
+  for (var i = 1; i < pts.length; i++) {
+    dist += metersBetween(pts[i - 1].$2, pts[i - 1].$3, pts[i].$2, pts[i].$3);
+  }
+  double? ref;
+  var ascent = 0.0;
+  var hasAlt = false;
+  for (final p in pts) {
+    final alt = p.$4;
+    if (alt == null) continue;
+    hasAlt = true;
+    if (ref == null) {
+      ref = alt;
+    } else if (alt > ref + 3) {
+      ascent += alt - ref;
+      ref = alt;
+    } else if (alt < ref - 3) {
+      ref = alt;
+    }
+  }
+  final hr = [...hrSorted]..sort((a, b) => a.$1.compareTo(b.$1));
+  int zoneAt(DateTime t) {
+    if (hr.isEmpty) return -1;
+    var lo = 0, hi = hr.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) ~/ 2;
+      if (hr[mid].$1.isAfter(t)) {
+        hi = mid - 1;
+      } else {
+        lo = mid;
+      }
+    }
+    if ((hr[lo].$1.difference(t).inSeconds).abs() > 180) return -1;
+    final pct = hr[lo].$2 / hrMax;
+    return pct < 0.6 ? 0 : pct < 0.7 ? 1 : pct < 0.8 ? 2 : pct < 0.9 ? 3 : 4;
+  }
+
+  final step = max(1, (pts.length / maxPoints).ceil());
+  double r5(double v) => (v * 100000).round() / 100000;
+  final out = <List<num>>[
+    for (var i = 0; i < pts.length; i += step) [r5(pts[i].$2), r5(pts[i].$3), zoneAt(pts[i].$1)],
+  ];
+  if ((pts.length - 1) % step != 0) out.add([r5(pts.last.$2), r5(pts.last.$3), zoneAt(pts.last.$1)]);
+  return (points: out, ascentM: hasAlt ? ascent.round() : null, distanceM: dist.round());
 }
 
 /// En måling over et tidsrom (skritt, distanse, kalorier) med kilde.
@@ -119,6 +189,7 @@ WatchData watchDataFor(ImportedWorkout w, double hrMax) {
     }
     avg = tot / secs;
   }
+  final rt = buildRoute(w.route, samples, hrMax);
   return WatchData(
     id: w.id,
     start: w.start,
@@ -129,8 +200,11 @@ WatchData watchDataFor(ImportedWorkout w, double hrMax) {
     maxHr: bpms.isNotEmpty ? bpms.reduce(max).round() : w.maxHr?.round(),
     minHr: bpms.isNotEmpty ? bpms.reduce(min).round() : null,
     kcal: w.kcal,
-    distanceM: w.distanceM,
+    distanceM: w.distanceM ?? rt.distanceM,
     steps: w.steps,
+    route: rt.points.length >= 2 ? [rt.points] : [],
+    ascentM: rt.ascentM,
+    routeNeedsConsent: w.routeNeedsConsent && rt.points.isEmpty,
     zoneSec: zones,
     hrCurve: [for (var m = 0; m < minutes; m++) cnt[m] == 0 ? 0 : (sum[m] / cnt[m]).round()],
     hrMaxUsed: hrMax.round(),
@@ -439,6 +513,9 @@ WatchData combineWatch(List<WatchData> parts, String id, {String outcome = ''}) 
     parts: [for (final d in items) d.id],
     activeSec: active,
     outcome: outcome,
+    route: [for (final d in used) ...d.route],
+    ascentM: used.any((d) => d.ascentM != null) ? used.fold<int>(0, (a, d) => a + (d.ascentM ?? 0)) : null,
+    routeNeedsConsent: used.any((d) => d.routeNeedsConsent),
   );
 }
 

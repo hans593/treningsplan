@@ -3,6 +3,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
 
 import 'models.dart';
@@ -117,6 +118,15 @@ class HealthSync {
     }
     out.writeln('');
     out.writeln('Siste $days dager i Health Connect:');
+    try {
+      final rp = await _health.getHealthDataFromTypes(
+          types: [HealthDataType.WORKOUT_ROUTE], startTime: from, endTime: now);
+      final consent = rp.where((r) => r.metadata?['route_requires_consent'] == true).length;
+      out.writeln('Kartruter: ${rp.length - consent} kan leses'
+          '${consent > 0 ? ', $consent trenger «Treningsruter: Tillat alltid»' : ''}');
+    } catch (e) {
+      out.writeln('Kartruter: FEIL $e');
+    }
     for (final t in [HealthDataType.WORKOUT, HealthDataType.HEART_RATE, HealthDataType.STEPS]) {
       try {
         final pts = await _health.getHealthDataFromTypes(types: [t], startTime: from, endTime: now);
@@ -184,6 +194,26 @@ class HealthSync {
               (x.dateFrom, x.dateTo, (x.value as NumericHealthValue).numericValue.toDouble(), x.sourceName)
         ];
     final stepD = deltas(steps), distD = deltas(dist), calD = deltas(cal);
+    // GPS-ruter (krever «Treningsruter: Tillat alltid» for Treningsplan i Health Connect).
+    final routes = <String, List<(DateTime, double, double, double?)>>{};
+    final routeConsent = <String>{};
+    try {
+      final rp = await _health.getHealthDataFromTypes(
+          types: [HealthDataType.WORKOUT_ROUTE], startTime: from, endTime: now);
+      for (final r in rp) {
+        if (r.metadata?['route_requires_consent'] == true) {
+          routeConsent.add(r.uuid);
+          continue;
+        }
+        final v = r.value;
+        if (v is! WorkoutRouteHealthValue || v.locations.isEmpty) continue;
+        routes[v.workoutUuid ?? r.uuid] = [
+          for (final l in v.locations) (l.timestamp, l.latitude, l.longitude, l.altitude)
+        ];
+      }
+    } catch (e) {
+      debugPrint('Kunne ikke lese ruter: $e');
+    }
     List<HealthDataPoint> weightRaw = [];
     try {
       weightRaw = await _health.getHealthDataFromTypes(
@@ -222,6 +252,8 @@ class HealthSync {
         steps: sumOneSource(stepD, d.dateFrom, d.dateTo, prefer: d.sourceName) ?? v.totalSteps,
         source: d.sourceName,
         hrSamples: samples,
+        route: routes[d.uuid] ?? const [],
+        routeNeedsConsent: routeConsent.contains(d.uuid),
       ));
     }
     final weights = [

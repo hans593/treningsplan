@@ -548,6 +548,16 @@ class WatchData {
   /// Aktiv tid i sekunder for sammenslåtte økter (summen av delene, ikke pausene mellom).
   final int? activeSec;
 
+  /// GPS-rute: én eller flere strekninger (flere for sammenslåtte økter) med punkter
+  /// [breddegrad, lengdegrad, pulssone 0–4 eller -1]. Tom når klokka ikke ga rute.
+  List<List<List<num>>> route;
+
+  /// Samlet stigning i meter (fra høyden i GPS-ruta).
+  final int? ascentM;
+
+  /// Ruta finnes, men Health Connect krever at appen får lov til å lese treningsruter.
+  final bool routeNeedsConsent;
+
   WatchData({
     required this.id,
     required this.start,
@@ -567,7 +577,12 @@ class WatchData {
     this.parts = const [],
     this.mergedInto,
     this.activeSec,
-  });
+    List<List<List<num>>>? route,
+    this.ascentM,
+    this.routeNeedsConsent = false,
+  }) : route = route ?? [];
+
+  bool get hasRoute => route.any((seg) => seg.length >= 2);
 
   bool get isMerged => parts.isNotEmpty;
 
@@ -600,6 +615,9 @@ class WatchData {
         if (parts.isNotEmpty) 'parts': parts,
         if (mergedInto != null) 'mergedInto': mergedInto,
         if (activeSec != null) 'activeSec': activeSec,
+        if (route.isNotEmpty) 'route': route,
+        if (ascentM != null) 'ascentM': ascentM,
+        if (routeNeedsConsent) 'routeConsent': true,
       };
 
   factory WatchData.fromJson(Map<String, dynamic> j) => WatchData(
@@ -621,6 +639,12 @@ class WatchData {
         parts: ((j['parts'] as List?) ?? const []).cast<String>(),
         mergedInto: j['mergedInto'],
         activeSec: j['activeSec'],
+        route: [
+          for (final seg in (j['route'] as List?) ?? const [])
+            [for (final pt in seg as List) (pt as List).cast<num>()]
+        ],
+        ascentM: j['ascentM'],
+        routeNeedsConsent: j['routeConsent'] == true,
       );
 }
 

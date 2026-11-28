@@ -51,6 +51,9 @@ Hvis du står over en økt, foreslår appen hvordan du tar den igjen.
 - **Det klokka registrerte:** under økta (og i lista under Samsung-klokke) vises tid, varighet, distanse, tempo,
   skritt, snitt-/høyeste/laveste puls, kalorier, tid i pulssoner og pulskurve – og en sammenligning med planen
   (tid og pulsmål for økttypen). Klokkeøkter de siste 30 dagene hentes, også før planen starter.
+- **Kart:** GPS-ruta fra klokka vises på Kartverkets topografiske kart (OpenStreetMap utenfor Norge), farget
+  etter pulssone, med start, mål og stigning. Krever «Treningsruter: Tillat alltid» for Treningsplan i Health Connect.
+  Ruter lagres i 45 dager.
 - **Slå sammen klokkeøkter:** kryss av flere korte økter samme dag under Samsung-klokke og trykk «Slå sammen».
   Tid i bevegelse, distanse, skritt, kalorier og pulssoner summeres, snittpuls vektes etter tid. Det delene
   registrerte hver for seg fjernes, og den samlede økta krysser av planen eller blir én ekstra. Kan deles opp igjen.
@@ -90,7 +93,7 @@ Krever [Flutter](https://docs.flutter.dev/get-started/install) 3.50 eller nyere.
 
 ```bash
 flutter pub get
-flutter test          # 106 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
+flutter test          # 108 tester, blant annet trygghetsregler i test/kontroll_test.dart: plan, tapt økt, ekstra økter, etterregistrering, justering, klokke-import
 flutter run           # på tilkoblet telefon eller emulator
 ```
 

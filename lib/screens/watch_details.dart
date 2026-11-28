@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../widgets.dart';
+import 'route_map.dart';
 
 const zoneColors = [
   Color(0xFF9DB8A8),
@@ -66,6 +67,7 @@ class WatchDetailsCard extends StatelessWidget {
       if (d.maxHr != null) ('Høyeste puls', '${d.maxHr} slag/min'),
       if (d.minHr != null) ('Laveste puls', '${d.minHr} slag/min'),
       if (d.kcal != null && d.kcal! > 0) ('Kalorier', '${d.kcal} kcal'),
+      if (d.ascentM != null && d.ascentM! > 0) ('Stigning', '${d.ascentM} m'),
     ];
     final p = planned;
     final hrEffort = d.avgHr == null ? null : effortFromAvg(d.avgHr!, d.hrMaxUsed);
@@ -87,6 +89,26 @@ class WatchDetailsCard extends StatelessWidget {
             '${d.source.isNotEmpty ? '\nKilde: ${_sourceName(d.source)}' : ''}',
             style: const TextStyle(color: muted, fontSize: 14, height: 1.4),
           ),
+          if (d.hasRoute) ...[
+            const SizedBox(height: 12),
+            RouteMapCard(d),
+            if (d.route.any((seg) => seg.any((p) => p.length > 2 && p[2] >= 0)))
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('Fargen på ruta viser pulssonen.', style: TextStyle(color: muted, fontSize: 13)),
+              ),
+          ] else if (d.routeNeedsConsent) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFFEEF2EF), borderRadius: BorderRadius.circular(12)),
+              child: const Text(
+                'Kart: Klokka har registrert ruta, men appen må få lov til å lese den. Åpne Health Connect → '
+                'Apptillatelser → Treningsplan → Treningsruter og velg «Tillat alltid». Trykk så «Hent nå».',
+                style: TextStyle(fontSize: 14, height: 1.4),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           LayoutBuilder(builder: (context, c) {
             final w = (c.maxWidth - 8) / 2;

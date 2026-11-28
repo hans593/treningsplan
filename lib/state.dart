@@ -72,6 +72,11 @@ class AppState extends ChangeNotifier {
     final cut = clock().subtract(const Duration(days: 90));
     watchLog.removeWhere((w) => w.start.isBefore(cut));
     if (watchLog.length > 150) watchLog = watchLog.sublist(0, 150);
+    // Kartruter tar plass i lagringen: behold dem bare de siste 45 dagene.
+    final routeCut = clock().subtract(const Duration(days: 45));
+    for (final w in watchLog) {
+      if (w.start.isBefore(routeCut) && w.route.isNotEmpty) w.route = [];
+    }
   }
 
   // Guidet økt
