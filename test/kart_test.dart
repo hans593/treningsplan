@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:treningsplan/models.dart';
 import 'package:treningsplan/state.dart';
 import 'package:treningsplan/watch_import.dart';
 
